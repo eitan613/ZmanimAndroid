@@ -1,3 +1,22 @@
 <resources>
     <string name="app_name">Zmanim</string>
+    <string name="calculation_preview">Calculation preview</string>
+    <string name="date_context">Hebrew date for the selected civil day</string>
+    <string name="previous_day">Previous day</string>
+    <string name="next_day">Next day</string>
+    <string name="today">Today</string>
+    <string name="sunrise">Sunrise</string>
+    <string name="sunset">Sunset</string>
+    <string name="sea_level">Sunrise and sunset calculated at sea level</string>
+    <string name="location_coordinates">%1$.3f° N · %2$.3f° E</string>
+    <string name="unavailable">Unavailable</string>
+    <string name="unavailable_reason">The sun does not rise or set for this date and location.</string>
+    <string name="choose_zmanim">Choose zmanim</string>
+    <string name="no_zmanim_selected">Choose which zmanim you want to show.</string>
+    <string name="done">Done</string>
+    <string name="cancel">Cancel</string>
+    <string name="saving">Saving…</string>
+    <string name="retry">Retry</string>
+    <string name="preferences_load_error">Your selected zmanim could not be loaded. Try again.</string>
+    <string name="preferences_save_error">Your selection could not be saved. Try again.</string>
 </resources>

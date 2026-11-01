@@ -1,4 +1,6 @@
 [versions]
+datastore = "1.2.1"
+kosherjava = "3.0.0"
 agp = "9.5.0"
 coreKtx = "1.10.1"
 junit = "4.13.2"
@@ -10,6 +12,8 @@ kotlin = "2.2.10"
 composeBom = "2026.02.01"
 
 [libraries]
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+kosherjava-zmanim = { group = "com.kosherjava", name = "zmanim", version.ref = "kosherjava" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
