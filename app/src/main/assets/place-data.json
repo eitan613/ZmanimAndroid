@@ -1,0 +1,13 @@
+{
+  "cities": {
+    "source": "https://download.geonames.org/export/dump/cities5000.zip",
+    "license": "CC BY 4.0",
+    "records": 69991
+  },
+  "timezones": {
+    "source": "https://github.com/evansiroky/timezone-boundary-builder/releases/download/2026f/timezones-with-oceans.geojson.zip",
+    "version": "2026f",
+    "license": "ODbL 1.0",
+    "polygons": 1356
+  }
+}

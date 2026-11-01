@@ -1,0 +1,20 @@
+Offline data attribution
+
+City names, coordinates, timezones and any supplied city elevations:
+GeoNames geographical database, Creative Commons Attribution 4.0.
+https://www.geonames.org/
+https://creativecommons.org/licenses/by/4.0/
+Dataset source and record count are recorded in place-data.json.
+
+Timezone boundaries contain information from OpenStreetMap contributors and
+Timezone Boundary Builder, licensed under the Open Database License 1.0.
+https://www.openstreetmap.org/copyright
+https://github.com/evansiroky/timezone-boundary-builder
+https://opendatacommons.org/licenses/odbl/1-0/
+The packaged boundaries preserve the source polygons, indexed with coordinates
+stored as IEEE 754 floats. The source release URL is recorded in place-data.json.
+The transformation is reproducible with tools/prepare_places.py.
+
+Calculations use KosherJava Zmanim 3.0.0 by Eliyahu Hershfeld and contributors,
+licensed under LGPL-2.1-or-later. The application calls the library directly.
+https://github.com/KosherJava/zmanim

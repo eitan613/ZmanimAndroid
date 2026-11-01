@@ -1,340 +1,154 @@
 package com.example.zmanim
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextDirection
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.example.zmanim.calculation.SavedLocation
-import com.example.zmanim.calculation.SolarDay
-import com.example.zmanim.calculation.ZmanimCalculator
-import com.example.zmanim.data.SolarMethod
-import com.example.zmanim.data.ZmanimPreferences
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.*
+import com.example.zmanim.data.RepositoryState
+import com.example.zmanim.domain.*
+import com.example.zmanim.ui.*
 import com.example.zmanim.ui.theme.ZmanimTheme
-import java.io.IOException
-import java.time.Instant
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private var launchDestination by mutableStateOf<String?>(null)
+    private var launchEventId by mutableStateOf<String?>(null)
+    private var launchDate by mutableStateOf<String?>(null)
+    private var launchToken by mutableIntStateOf(0)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { ZmanimTheme { ZmanimApp() } }
+        readLaunch(intent)
+        setContent { ZmanimApp(launchDestination, launchEventId, launchDate, launchToken) }
     }
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); readLaunch(intent) }
+    private fun readLaunch(intent: Intent) { launchDestination = intent.getStringExtra("destination"); launchEventId = intent.getStringExtra("eventId"); launchDate = intent.getStringExtra("date"); launchToken += 1 }
 }
 
-@Composable
-fun ZmanimApp() {
-    val location = SavedLocation.Jerusalem
-    var epochDay by rememberSaveable {
-        mutableLongStateOf(LocalDate.now(location.zoneId).toEpochDay())
-    }
-    val calculator = remember { ZmanimCalculator() }
-    val day = remember(epochDay) { calculator.calculate(LocalDate.ofEpochDay(epochDay), location) }
-    val context = LocalContext.current
-    val preferences = remember(context) { ZmanimPreferences(context) }
-    var retry by remember { mutableLongStateOf(0L) }
-    val selection by produceState<SelectionState>(SelectionState.Loading, preferences, retry) {
-        value = SelectionState.Loading
-        try {
-            preferences.selectedMethods.collect { value = SelectionState.Ready(it) }
-        } catch (_: IOException) {
-            value = SelectionState.Failed
-        }
-    }
-    var choosing by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
-    var saveFailed by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    ZmanimScreen(
-        day = day,
-        selection = selection,
-        onChoose = { saveFailed = false; choosing = true },
-        onRetry = { retry += 1 },
-        onPrevious = { epochDay -= 1 },
-        onToday = { epochDay = LocalDate.now(location.zoneId).toEpochDay() },
-        onNext = { epochDay += 1 },
-    )
-    val ready = selection as? SelectionState.Ready
-    if (choosing && ready != null) {
-        MethodPicker(
-            initial = ready.methods,
-            saving = saving,
-            saveFailed = saveFailed,
-            onDismiss = { if (!saving) choosing = false },
-            onSave = { methods ->
-                scope.launch {
-                    saving = true
-                    saveFailed = false
-                    try {
-                        preferences.saveSelection(methods)
-                        choosing = false
-                    } catch (_: IOException) {
-                        saveFailed = true
-                    } finally {
-                        saving = false
+@Composable fun ZmanimApp(destination: String? = null, eventId: String? = null, launchDate: String? = null, launchToken: Int = 0, model: AppViewModel = viewModel()) {
+    val state by model.state.collectAsStateWithLifecycle()
+    val screen by model.screen.collectAsStateWithLifecycle()
+    val settings = (state as? RepositoryState.Ready)?.data?.settings ?: AppSettings()
+    val configuration = LocalConfiguration.current
+    val hebrew = settings.language == Language.HEBREW || settings.language == Language.SYSTEM && configuration.locales[0].language in setOf("he", "iw")
+    val dark = when (settings.appearance) { Appearance.DARK -> true; Appearance.LIGHT -> false; Appearance.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme() }
+    CompositionLocalProvider(LocalHebrew provides hebrew, LocalLabelHebrew provides (settings.labels == LabelLanguage.HEBREW), LocalProductLocale provides settings.productLocale(configuration.locales[0]), LocalLayoutDirection provides if (hebrew) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        ZmanimTheme(dark) {
+            val activity = LocalContext.current as? android.app.Activity
+            val view = LocalView.current
+            SideEffect {
+                activity?.window?.let { window ->
+                    WindowCompat.getInsetsController(window, view).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
                     }
                 }
-            },
-        )
-    }
-}
-
-private sealed interface SelectionState {
-    data object Loading : SelectionState
-    data object Failed : SelectionState
-    data class Ready(val methods: Set<SolarMethod>) : SelectionState
-}
-
-@Composable
-private fun ZmanimScreen(
-    day: SolarDay,
-    selection: SelectionState,
-    onChoose: () -> Unit,
-    onRetry: () -> Unit,
-    onPrevious: () -> Unit,
-    onToday: () -> Unit,
-    onNext: () -> Unit,
-) {
-    val locale = LocalConfiguration.current.locales[0]
-    val dateFormatter = remember(locale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale)
-    }
-    val timeFormatter = remember(locale, day.location.zoneId) {
-        DateTimeFormatter.ofPattern("HH:mm:ss", locale).withZone(day.location.zoneId)
-    }
-    Scaffold { innerPadding ->
-        Box(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Column(
-                modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth()
-                    .verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
-                    Text(
-                        stringResource(R.string.calculation_preview),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            }
+            val nav = rememberNavController()
+            val snackbar = remember { SnackbarHostState() }
+            val entry by nav.currentBackStackEntryAsState()
+            val route = entry?.destination?.route ?: "calendar"
+            var dialog by rememberSaveable { mutableStateOf<String?>(null) }
+            var editing by rememberDraft<Event?>("editing-event", null)
+            var occurrenceSnapshot by rememberDraft<OccurrenceSnapshot?>("editing-occurrence", null)
+            val selectedOccurrence = occurrenceSnapshot?.restore()
+            var nativeId by rememberSaveable { mutableStateOf<Long?>(null) }
+            var nativeCalendar by rememberSaveable { mutableStateOf<Long?>(null) }
+            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { model.refresh() }
+            LaunchedEffect(model, hebrew) { model.message.collect { snackbar.showSnackbar(localizeMessage(it, hebrew)) } }
+            var initialNavigationDone by rememberSaveable { mutableStateOf(false) }
+            var handledLaunch by rememberSaveable { mutableStateOf("") }
+            LaunchedEffect(destination, settings.onboardingComplete, screen != null, launchToken) {
+                if (screen == null || (initialNavigationDone && destination == null)) return@LaunchedEffect
+                val target = destination ?: if (settings.openingView == OpeningView.ZMANIM) "zmanim" else "calendar"
+                if (target in listOf("calendar", "zmanim", "settings")) {
+                    nav.navigate(target) { popUpTo(nav.graph.startDestinationId); launchSingleTop = true }
+                    initialNavigationDone = true
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        day.hebrewDate,
-                        modifier = Modifier.testTag("hebrewDate"),
-                        style = MaterialTheme.typography.displaySmall.copy(textDirection = TextDirection.Rtl),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(day.transliteratedDate, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        dateFormatter.format(day.date),
-                        modifier = Modifier.testTag("civilDate"),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        stringResource(R.string.date_context),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            }
+            LaunchedEffect(eventId, screen != null, launchDate, launchToken) {
+                val current = screen ?: return@LaunchedEffect
+                val request = "$launchToken:$eventId:$launchDate"
+                if (eventId != null && request != handledLaunch) current.data.events.find { it.id == eventId }?.let { event ->
+                    val date = runCatching { java.time.LocalDate.parse(launchDate) }.getOrNull() ?: java.time.LocalDate.parse(event.anchorDate)
+                    model.select(date); editing = event
+                    occurrenceSnapshot = OccurrenceSnapshot.from(OccurrenceEngine().occurrence(event, date, current.data))
+                    dialog = "event-detail"; handledLaunch = request
                 }
-                DateNavigation(onPrevious, onToday, onNext)
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(day.location.name, style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            stringResource(R.string.location_coordinates, day.location.latitude, day.location.longitude),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(day.location.zoneId.id, style = MaterialTheme.typography.bodyMedium)
-                        HorizontalDivider()
-                        when (selection) {
-                            SelectionState.Loading -> CircularProgressIndicator()
-                            SelectionState.Failed -> {
-                                Text(stringResource(R.string.preferences_load_error))
-                                TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
-                            }
-                            is SelectionState.Ready -> {
-                                if (selection.methods.isEmpty()) {
-                                    Text(stringResource(R.string.no_zmanim_selected))
-                                }
-                                if (SolarMethod.SUNRISE in selection.methods) {
-                                    SolarTime(stringResource(R.string.sunrise), day.sunrise, timeFormatter, Modifier.testTag("sunriseTime"))
-                                }
-                                if (SolarMethod.SUNSET in selection.methods) {
-                                    SolarTime(stringResource(R.string.sunset), day.sunset, timeFormatter, Modifier.testTag("sunsetTime"))
-                                }
-                                OutlinedButton(onClick = onChoose) { Text(stringResource(R.string.choose_zmanim)) }
-                            }
+            }
+            androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { model.visible(true); model.refresh(); onPauseOrDispose { model.visible(false) } }
+            Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
+                NavigationBar {
+                    listOf(Triple("calendar", tr("Calendar", "לוח שנה"), Icons.Default.DateRange),
+                        Triple("zmanim", tr("Zmanim", "זמנים"), Icons.AutoMirrored.Filled.List),
+                        Triple("settings", tr("Settings", "הגדרות"), Icons.Default.Settings)).forEach { (path, label, icon) ->
+                        NavigationBarItem(selected = route == path, enabled = screen != null, onClick = { nav.navigate(path) { popUpTo(nav.graph.startDestinationId) { saveState = true }; launchSingleTop = true; restoreState = true } },
+                            icon = { Icon(icon, contentDescription = null) }, label = { Text(label) })
+                    }
+                }
+            }) { padding ->
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    when (val current = state) {
+                        is RepositoryState.Failed -> Column(Modifier.padding(24.dp)) {
+                            Notice(current.message, true); TextButton(onClick = { model.repository.reload() }) { Text(tr("Retry", "ניסיון חוזר")) }
                         }
-                        Text(
-                            stringResource(R.string.sea_level),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        RepositoryState.Loading -> CircularProgressIndicator()
+                        is RepositoryState.Ready -> if (screen == null) CircularProgressIndicator() else {
+                            val s = screen!!
+                            val openEvent: (Occurrence) -> Unit = { occurrence ->
+                                if (occurrence.providerId != null) {
+                                    model.act {
+                                        val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { model.app.calendars.ordinaryEvent(occurrence.providerId) }
+                                        if (loaded == null || s.calendars.none { it.id == loaded.second && it.writable }) model.app.startActivity(model.app.calendars.viewIntent(occurrence.providerId).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        else { editing = loaded.first; nativeId = occurrence.providerId; nativeCalendar = loaded.second; occurrenceSnapshot = null; dialog = "event" }
+                                    }
+                                } else { occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); editing = s.data.events.find { it.id == occurrence.eventId }; nativeId = null; nativeCalendar = null; dialog = "event-detail" }
+                            }
+                            NavHost(nav, startDestination = "calendar") {
+                                composable("calendar") { CalendarScreen(s, model, onNewEvent = { editing = Event(title = "", anchorDate = s.date.toString(), zoneId = s.data.place()?.zoneId ?: java.time.ZoneId.systemDefault().id,
+                                        location = s.data.settings.location, profileId = s.data.settings.activeProfileId); nativeId = null; nativeCalendar = null; occurrenceSnapshot = null; dialog = "event" },
+                                    onZmanim = { nav.navigate("zmanim") }, onEvent = openEvent, onGoTo = { dialog = "go-to" }) }
+                                composable("zmanim") { ZmanimScreen(s, model, onProfiles = { dialog = "profiles" }, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocations = { dialog = "locations" }) }
+                                composable("settings") { SettingsScreen(s, model, permission, onProfiles = { dialog = "profiles" }, onLocations = { dialog = "locations" }, onBackup = { dialog = "backup" }) }
+                            }
+                            when (dialog) {
+                                "event" -> EventEditor(s, model, editing, selectedOccurrence, nativeId, nativeCalendar, { dialog = null })
+                                "event-detail" -> selectedOccurrence?.let { o -> EventDetails(s, model, o, onDismiss = { dialog = null }, onEdit = { scopeChoice ->
+                                    dialog = "event"; nativeId = null; nativeCalendar = null
+                                    if (scopeChoice == "series") occurrenceSnapshot = null
+                                    else occurrenceSnapshot = OccurrenceSnapshot.from(o.copy(key = scopeChoice))
+                                }) }
+                                "profiles" -> ProfilesDialog(s, model) { dialog = null }
+                                "methods" -> s.data.profile()?.let { MethodPicker(it, model) { dialog = null } }
+                                "locations" -> LocationsDialog(s, model, permission) { dialog = null }
+                                "go-to" -> GoToDialog(s.date, { model.select(it); dialog = null }, { dialog = null })
+                                "backup" -> BackupDialog(s, model) { dialog = null }
+                            }
+                            if (!s.data.settings.onboardingComplete) Onboarding(s, model, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocation = { dialog = "locations" })
+                        }
                     }
                 }
-                if (day.sunrise == null || day.sunset == null) {
-                    Text(stringResource(R.string.unavailable_reason), style = MaterialTheme.typography.bodyMedium)
-                }
-                Spacer(Modifier.height(8.dp))
             }
         }
-    }
-}
-
-@Composable
-private fun DateNavigation(onPrevious: () -> Unit, onToday: () -> Unit, onNext: () -> Unit) {
-    val actions = listOf(
-        R.string.previous_day to onPrevious,
-        R.string.today to onToday,
-        R.string.next_day to onNext,
-    )
-    val button: @Composable (Int, () -> Unit, Modifier) -> Unit = { label, action, modifier ->
-        TextButton(
-            onClick = action,
-            modifier = modifier.heightIn(min = 48.dp),
-            colors = if (label == R.string.today) {
-                ButtonDefaults.textButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            } else {
-                ButtonDefaults.textButtonColors()
-            },
-        ) { Text(stringResource(label)) }
-    }
-    if (LocalDensity.current.fontScale >= 1.5f) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            actions.forEach { (label, action) -> button(label, action, Modifier.fillMaxWidth()) }
-        }
-    } else {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            actions.forEach { (label, action) -> button(label, action, Modifier.weight(1f)) }
-        }
-    }
-}
-
-@Composable
-private fun SolarTime(label: String, instant: Instant?, formatter: DateTimeFormatter, modifier: Modifier = Modifier) {
-    // Stacked text remains readable on narrow screens and with enlarged system fonts.
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        Text(
-            instant?.let(formatter::format) ?: stringResource(R.string.unavailable),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-    }
-}
-
-@Composable
-private fun MethodPicker(
-    initial: Set<SolarMethod>,
-    saving: Boolean,
-    saveFailed: Boolean,
-    onDismiss: () -> Unit,
-    onSave: (Set<SolarMethod>) -> Unit,
-) {
-    var draft by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.choose_zmanim)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SolarMethod.entries.forEach { method ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().toggleable(
-                            value = method in draft,
-                            enabled = !saving,
-                            role = Role.Checkbox,
-                            onValueChange = { checked -> draft = if (checked) draft + method else draft - method },
-                        ).padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = method in draft, onCheckedChange = null, enabled = !saving)
-                        Text(
-                            stringResource(if (method == SolarMethod.SUNRISE) R.string.sunrise else R.string.sunset),
-                            modifier = Modifier.padding(start = 12.dp),
-                        )
-                    }
-                }
-                Text(stringResource(R.string.sea_level), style = MaterialTheme.typography.bodySmall)
-                if (saveFailed) {
-                    Text(stringResource(R.string.preferences_save_error), color = MaterialTheme.colorScheme.error)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(draft) }, enabled = !saving) {
-                Text(stringResource(if (saving) R.string.saving else R.string.done))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.cancel)) }
-        },
-    )
-}
-
-@Preview(showBackground = true)
-@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun ZmanimPreview() {
-    ZmanimTheme {
-        ZmanimScreen(
-            ZmanimCalculator().calculate(LocalDate.of(2026, 11, 1), SavedLocation.Jerusalem),
-            selection = SelectionState.Ready(SolarMethod.entries.toSet()),
-            onChoose = {}, onRetry = {},
-            onPrevious = {}, onToday = {}, onNext = {},
-        )
     }
 }
