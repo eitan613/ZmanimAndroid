@@ -77,7 +77,7 @@ open class CalendarWidget(private val kind: WidgetKind) : GlanceAppWidget() {
             WidgetKind.ZMANIM -> {
                 val profile = data.profile(config.profileId ?: settings.activeProfileId)
                 if (profile == null || place == null) emptyList() else (0L..7L).flatMap { offset ->
-                    CalculationEngine().calculate(CalculationQuery(today.plusDays(offset), place, profile)).filter { (MethodCatalog.byId[it.id]?.group ?: "custom") !in profile.hiddenGroups }
+                    CalculationEngine().calculate(CalculationQuery(today.plusDays(offset), place, profile, inIsrael = settings.inIsrael ?: false)).filter { (MethodCatalog.byId[it.id]?.group ?: "custom") !in profile.hiddenGroups }
                 }.filter { it.value is CalculationValue.Time && it.value.instant >= now }.sortedBy { (it.value as CalculationValue.Time).instant }
                     .take(config.itemCount.coerceIn(1, 10)).map { z ->
                         val instant = (z.value as CalculationValue.Time).instant
@@ -154,7 +154,7 @@ object WidgetUpdates {
             boundaries += date.plusDays(1).atStartOfDay(place.zone()).toInstant()
             if (config.sunsetRollover) CalculationEngine().seaLevelSunset(date, place)?.takeIf { it > now }?.let { boundaries += it }
             if (config.kind == WidgetKind.ZMANIM) data.profile(config.profileId ?: data.settings.activeProfileId)?.let { p ->
-                CalculationEngine().calculate(CalculationQuery(date, place, p)).mapNotNull { (it.value as? CalculationValue.Time)?.instant }.filter { it > now }.minOrNull()?.let { boundaries += it }
+                CalculationEngine().calculate(CalculationQuery(date, place, p, inIsrael = data.settings.inIsrael ?: false)).mapNotNull { (it.value as? CalculationValue.Time)?.instant }.filter { it > now }.minOrNull()?.let { boundaries += it }
             }
         }
         if (data.settings.dateNotification) {

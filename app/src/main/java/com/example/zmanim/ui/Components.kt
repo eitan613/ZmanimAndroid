@@ -1,6 +1,9 @@
 package com.example.zmanim.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -82,7 +85,7 @@ val LocalProductLocale = staticCompositionLocalOf { java.util.Locale.ENGLISH }
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel", "ביטול")) } })
 }
 @Composable fun EditorDialog(title: String, dirty: Boolean, onDismiss: () -> Unit, onSave: suspend () -> Unit,
-    saveLabel: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    saveLabel: String? = null, live: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var discard by remember { mutableStateOf(false) }
@@ -93,7 +96,7 @@ val LocalProductLocale = staticCompositionLocalOf { java.util.Locale.ENGLISH }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = close, enabled = !saving) { Text(tr("Cancel", "ביטול")) }
+                    TextButton(onClick = close, enabled = !saving) { Text(if (live) tr("Back", "חזרה") else tr("Cancel", "ביטול")) }
                     TextButton(onClick = {
                         if (!saving) scope.launch {
                             saving = true; error = null
@@ -103,7 +106,7 @@ val LocalProductLocale = staticCompositionLocalOf { java.util.Locale.ENGLISH }
                 }
                 Column(Modifier.weight(1f).widthIn(max = 840.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(title, style = MaterialTheme.typography.headlineMedium)
+                    Text(title, style = MaterialTheme.typography.titleLarge)
                     error?.let { Notice(it, true) }
                     content()
                     Spacer(Modifier.height(24.dp))
@@ -134,13 +137,46 @@ val LocalProductLocale = staticCompositionLocalOf { java.util.Locale.ENGLISH }
 fun methodLabel(id: String, profile: Profile?, hebrew: Boolean): String {
     profile?.custom?.find { it.id == id }?.let { return if (hebrew && it.hebrewName.isNotBlank()) it.hebrewName else it.name }
     val method = MethodCatalog.byId[id] ?: return "Missing calculation"
-    if (!hebrew) return effectiveMethodDescription(method, profile)
-    var label = effectiveMethodDescription(method, profile)
-    val replacements = linkedMapOf("Morning (six temporal hours):" to "בוקר (שש שעות זמניות):", "Afternoon (six temporal hours):" to "אחר הצהריים (שש שעות זמניות):", "Astronomical solar transit" to "חצות שמש אסטרונומי", "Midpoint of sunrise and sunset" to "אמצע הזמן בין זריחה לשקיעה", "Latest Shema" to "סוף זמן קריאת שמע", "Latest prayer" to "סוף זמן תפילה", "Temporal hour" to "שעה זמנית",
+    var label = method.label.substringBefore(" · Day:").replace(" (profile elevation policy)", "")
+        .replace("Sun Transit", "Chatzos · solar noon")
+    if (!hebrew) return label
+    val replacements = linkedMapOf("Morning (six temporal hours):" to "בוקר (שש שעות זמניות):", "Afternoon (six temporal hours):" to "אחר הצהריים (שש שעות זמניות):", "Astronomical solar transit" to "חצות שמש אסטרונומי", "Midpoint of sunrise and sunset" to "אמצע הזמן בין זריחה לשקיעה", "Latest Shema" to "סוף זמן קריאת שמע", "Latest teffilah" to "סוף זמן תפילה", "Temporal hour" to "שעה זמנית",
         "Earliest Mincha" to "מנחה גדולה", "Mincha ketanah" to "מנחה קטנה", "Dawn" to "עלות השחר", "Nightfall" to "צאת הכוכבים", "Misheyakir" to "משיכיר",
         "Sunrise" to "הנץ החמה", "Sunset" to "שקיעה", "Midday" to "חצות היום", "Midnight" to "חצות הלילה", "Plag" to "פלג", "Twilight" to "בין השמשות",
-        "Candle Lighting" to "הדלקת נרות", "Day:" to "יום:", "profile elevation policy" to "לפי הגדרת הגובה בפרופיל", "Sea Level" to "גובה פני הים", "Fixed local" to "מקומי קבוע", "Solar Midnight" to "חצות שמש", "Sun Transit" to "מעבר השמש במרידיאן", "Vilna Gaon" to "הגר״א", "Magen Avraham" to "מגן אברהם", "Baal HaTanya" to "בעל התניא", "sea level" to "גובה פני הים",
+        "Candle Lighting" to "הדלקת נרות", "Chametz eating deadline" to "סוף זמן אכילת חמץ", "Chametz disposal deadline" to "סוף זמן ביעור חמץ", "Earliest Kiddush Levanah" to "תחילת זמן קידוש לבנה", "Latest Kiddush Levanah" to "סוף זמן קידוש לבנה", "Molad" to "מולד", "Day:" to "יום:", "profile elevation policy" to "לפי הגדרת הגובה בפרופיל", "Sea Level" to "גובה פני הים", "Fixed local" to "מקומי קבוע", "Solar Midnight" to "חצות שמש", "Chatzos · solar noon" to "חצות · חצות שמש", "Vilna Gaon" to "הגר״א", "Magen Avraham" to "מגן אברהם", "Baal HaTanya" to "בעל התניא", "sea level" to "גובה פני הים",
         "below horizon" to "מתחת לאופק", "temporal minutes" to "דקות זמניות", "minutes" to "דקות", "hours" to "שעות", "Morning" to "בוקר", "Evening" to "ערב")
     replacements.forEach { (a, b) -> label = label.replace(a, b) }
     return label
+}
+
+@Composable fun AppHeader(title: String, subtitle: String? = null, actions: List<Pair<String, () -> Unit>> = emptyList(), onBack: (() -> Unit)? = null) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        if (onBack != null) IconButton(onClick = onBack) {
+            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, tr("Back", "חזרה"))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (actions.isNotEmpty()) Box {
+            IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("overflowMenu")) {
+                Icon(androidx.compose.material.icons.Icons.Default.MoreVert, tr("Menu", "תפריט"))
+            }
+            DropdownMenu(expanded, { expanded = false }) {
+                actions.forEach { (label, action) -> DropdownMenuItem(text = { Text(label) }, modifier = Modifier.testTag("menu:$label"), onClick = { expanded = false; action() }) }
+            }
+        }
+    }
+}
+
+@Composable fun MethodChoice(label: String, checked: Boolean, onChange: (Boolean) -> Unit, onInfo: () -> Unit) {
+    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Checkbox, onValueChange = onChange),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Text(label, Modifier.weight(1f).padding(horizontal = 8.dp),
+            textAlign = if (LocalLabelHebrew.current) androidx.compose.ui.text.style.TextAlign.Right else androidx.compose.ui.text.style.TextAlign.Start,
+            style = MaterialTheme.typography.bodyMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content))
+        IconButton(onClick = onInfo) { Icon(androidx.compose.material.icons.Icons.Default.Info, tr("How this is calculated", "אופן החישוב")) }
+    }
 }

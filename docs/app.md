@@ -1,3 +1,8 @@
+> **November 2026 redesign:** [problem-resolution.md](problem-resolution.md)
+> records the implemented updates to navigation, defaults, applicability,
+> factual help, permissions, and settings. Religious guidance remains outside the app; factual descriptions of the pinned
+> calculations are included.
+
 # Calendar and Zmanim
 
 - Light/dark mode
@@ -32,7 +37,7 @@
 - show modern holidays
 - show calendar holidays/events
 - show parsha/special parsha
-- scroll years/month (toggle which direction does which)
+- swipe months or years (select which period a horizontal swipe changes)
 - fade out a little days not in that month (but are in the week)
 - toggle coloring special days like our pdf
 - today, go to, new event, search event controls in menu dropdown
@@ -92,7 +97,7 @@ These principles are agreed. Questions below concern the remaining policy choice
 - If a required astronomical event cannot be calculated, show "Unavailable" with a factual reason. Do not substitute another method silently. Dependent custom zmanim and reminders must also handle unavailability.
 - Display all overlapping months in the secondary calendar, including cases with three months.
 - Israel/diaspora selection controls holiday and parsha schedules.
-- Users choose their calculation methods explicitly. First launch offers method selection and an option to skip into the calendar. No religious calculation methods are silently preselected.
+- Users choose their calculation methods explicitly. First launch opens the calendar immediately; the zmanim screen offers selection and location setup when needed. No calculation methods are silently preselected.
 - Retain unrounded calculated instants internally. Rounding and the +/- indication are display choices; explicitly define how alerts relate to the actual instant.
 - Share one calculation engine between app screens, widgets, recurrence, and reminder scheduling.
 
@@ -106,13 +111,13 @@ The implementation uses the decisions agreed during planning:
 - Current Hebrew date rollover uses sea-level sunset independently of selected methods. Missing sunset/location is unavailable, with no midnight substitution.
 - Profiles include calculation-affecting settings; location and presentation settings are separate. Switching profiles switches profile reminders, while events retain their profile references.
 - Bundle offline city and timezone data; permit manual coordinates, timezone, and elevation. Optional background location supports travel. Device fixes are flagged after 24 hours or a clock discontinuity, without silently switching location.
-- Month cells show both dates, short enabled calendar labels, and event indicators; selected-day details appear below. Grid direction is independent of language. Swipe axes are configurable and visible navigation alternatives remain available.
+- Month cells show both dates, short enabled calendar labels, and event indicators; selected-day details appear below. Grid direction is independent of language. Horizontal swipes change months or years according to the selected setting; accessible period actions and the menu date picker provide alternatives.
 - Display-only rounding offers down/nearest/up; `+` means later than the exact instant and `−` earlier. Reminders use exact instants plus their explicit offsets.
 - Approximate alarms require user acceptance and show a may-be-late status. Denied notifications are inactive.
 - Device Calendar Provider handles connected account calendars. Ordinary one-time events can be edited directly; app-owned recurrence exports individual occurrences for a rolling year. External changes pause managed updates and expose restore, detach/suppress, or stop-exporting choices. Guest invitations finish in the device calendar editor.
 - Widgets support up to 10 events/zmanim with independent configuration and native scrolling when needed. The Hebrew-date notification contains the full date and a monochrome day-number icon, subject to Android visibility controls.
 - Versioned JSON backups support selective export and keep/replace/copy import previews. Private locations/events are excluded from calculation sharing unless selected. Imported reminders remain configured but inactive until explicitly enabled; permissions and device bindings are not restored.
-- Factual catalog labels await owner review in `docs/method-catalog.csv`. No narrative religious guidance is supplied. Optional online place/elevation providers and direct cloud integrations remain outside this implementation.
+- Factual catalog labels await owner review in `docs/method-catalog.csv`. Factual calculation help is included; no narrative religious guidance is supplied. Optional online place/elevation providers and direct cloud integrations remain outside this implementation.
 
 ### Specification questions and decision ownership
 
@@ -128,9 +133,9 @@ The implementation uses the decisions agreed during planning:
 | C4 | App user    | Is this event one-time or recurring; Hebrew or Gregorian; daily, weekly, monthly, or yearly; and at a fixed time, all day, or relative to a zman?                                                  | Required event-editor choices, plus interval/end conditions, reminders, and location where applicable.              |
 | C5 | Owner (you) | Which sunset definition and elevation policy drive the current Hebrew-date rollover? What happens when location or sunset is unavailable?                                                          | Resolved: sea-level sunset; explicit unavailability. |
 | C6 | App user    | Should the Hebrew-date widget advance at sunset or midnight, and which location should it use?                                                                                                     | Existing requested setting; civil appointments retain their dates.                                                  |
-| C7 | App user    | Israel or diaspora holiday/parsha schedule?                                                                                                                                                        | Explicit setting; travel must not silently override it.                                                             |
+| C7 | App user    | Israel or diaspora holiday/parsha schedule?                                                                                                                                                        | One-time location-derived initial default, diaspora fallback, manual override; travel never changes the established choice.                                                             |
 | C8 | App user    | Opening view; primary calendar; Sunday/Monday week start; month direction; scroll directions; double-tap action; special-day colors; holiday/parsha/Omer visibility; Hebrew/transliterated labels? | Existing requested preferences.                                                                                     |
-| C9 | Owner (you) | What exactly do month direction and year/month scroll-direction controls change? Are label language and layout direction independent?                                                              | Resolved: independent grid/language, configurable swipe axes, visible alternatives. |
+| C9 | Owner (you) | What exactly do month direction and year/month scroll-direction controls change? Are label language and layout direction independent?                                                              | Resolved: independent grid/language; horizontal swipes change months or years; accessible period actions and menu date navigation. |
 
 #### Zmanim and locations
 
@@ -139,7 +144,7 @@ The implementation uses the decisions agreed during planning:
 | Z1 | Owner (you) | Beyond selected methods, display order, custom definitions, and reminder preferences, which settings belong to a profile versus the whole app? | Resolved: calculation settings in profiles; location/presentation app-wide. |
 | Z2  | App user    | Which groups and individual methods are visible, and in what order? What are the names and contents of their saved profiles?                                | No preselected calculation methods.                                                                             |
 | Z3  | Owner (you) | What are the final user-friendly labels, transliterations, group assignments, and distinguishing details for every supported method?                              | Owner review required. Library identifiers stay internal.                                                       |
-| Z4  | Owner (you) | Include explanatory guidance? What reviewed text and sources will be supplied?                                                                                    | Resolved for this implementation: omit narrative guidance. |
+| Z4  | Owner (you) | Include explanatory guidance? What reviewed text and sources will be supplied?                                                                                    | Factual calculation help is included; owner-authored religious guidance remains outside this implementation. |
 | Z5  | App user    | Which base zman, fixed-minute offset, morning/evening solar angle, or temporal-hour formula defines a custom zman? Which day boundaries define its temporal hour? | Explicit formula-editor choices; show a readable formula and example result.                                    |
 | Z6  | Owner (you) | Can custom zmanim reference other custom zmanim? What happens when a dependency is edited or deleted?                                                             | Yes. Reject dependency cycles and explain affected formulas before deletion.                                    |
 | Z7  | App user    | Follow device location or use a saved place? What location applies to each widget and zman-relative event?                                                        | Explicit choices; show the active place and when device location was obtained.                                  |

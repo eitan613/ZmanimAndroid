@@ -8,27 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zmanim.domain.*
 
-@Composable fun Onboarding(s: ScreenData, model: AppViewModel, onMethods: () -> Unit, onLocation: () -> Unit) {
-    var inIsrael by remember { mutableStateOf(s.data.settings.inIsrael) }
-    var working by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = {}, title = { Text(tr("Your calendar and zmanim", "לוח השנה והזמנים שלך")) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(tr("Choose the holiday and parsha schedule you follow. It stays fixed when you travel.", "בחרו את סדר החגים והפרשות שלכם. בחירה זו לא משתנה בנסיעות."))
-            Choice(tr("Holiday and parsha schedule", "סדר חגים ופרשות"), inIsrael, listOf(null, true, false),
-                { value -> when (value) { true -> tr("Israel", "ישראל"); false -> tr("Diaspora", "חו״ל"); null -> tr("Choose…", "בחירה…") } }, { inIsrael = it })
-            Text(tr("You choose every zmanim method yourself. You can start with the calendar and configure zmanim later.", "כל שיטת חישוב נבחרת על ידכם. אפשר להתחיל בלוח השנה ולהגדיר זמנים בהמשך."))
-        } }, confirmButton = { TextButton(enabled = inIsrael != null && !working, onClick = {
-            working = true
-            model.act {
-                if (s.data.profiles.isEmpty()) model.repository.saveProfile(Profile())
-                model.repository.settings { it.copy(inIsrael = inIsrael, onboardingComplete = true) }
-                onMethods()
-            }
-        }) { Text(tr("Choose zmanim", "בחירת זמנים")) } }, dismissButton = {
-            TextButton(enabled = inIsrael != null && !working, onClick = { working = true; model.settings { it.copy(inIsrael = inIsrael, onboardingComplete = true) } }) { Text(tr("Open calendar", "פתיחת לוח השנה")) }
-        })
-}
-
 @Composable fun GoToDialog(initial: java.time.LocalDate, onDate: (java.time.LocalDate) -> Unit, onDismiss: () -> Unit) {
     var system by rememberSaveable { mutableStateOf(CalendarSystem.GREGORIAN) }
     var civil by rememberSaveable { mutableStateOf(initial.toString()) }

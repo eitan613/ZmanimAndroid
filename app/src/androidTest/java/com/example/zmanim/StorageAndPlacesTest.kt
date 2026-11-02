@@ -7,6 +7,7 @@ import com.example.zmanim.data.*
 import com.example.zmanim.data.db.*
 import com.example.zmanim.domain.*
 import kotlinx.serialization.encodeToString
+import kotlinx.coroutines.async
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +58,27 @@ class StorageAndPlacesTest {
                 assertTrue(app.repository.data.events.isEmpty())
             } finally { app.repository.update { originalData } }
         }
+    }
+
+    @Test fun profileFieldUpdatesPreserveConcurrentSelections() = kotlinx.coroutines.runBlocking {
+        val app = context.applicationContext as ZmanimApplication
+        val before = app.awaitData()
+        try {
+            val profile = Profile(id = "atomic-profile")
+            app.repository.saveProfile(profile)
+            kotlinx.coroutines.coroutineScope {
+                val jobs = listOf("sea-level-sunrise", "sea-level-sunset").map { id ->
+                    async(kotlinx.coroutines.Dispatchers.Default) {
+                        app.repository.updateProfile(profile.id) { it.copy(selected = it.selected + id) }
+                    }
+                }
+                app.repository.updateProfile(profile.id) { it.copy(name = "Renamed") }
+                jobs.forEach { it.await() }
+            }
+            val saved = app.repository.data.profile(profile.id)!!
+            assertEquals("Renamed", saved.name)
+            assertEquals(setOf("sea-level-sunrise", "sea-level-sunset"), saved.selected.toSet())
+        } finally { app.repository.update { before } }
     }
 
 }

@@ -9,7 +9,8 @@ import java.util.Locale
 
 // Gregorian LocalDate is an unambiguous index; it never implies a sunset rollover.
 data class CalendarDay(val date: LocalDate, val hebrewDay: Int, val hebrewDate: String,
-    val holiday: String, val parsha: String, val specialParsha: String, val omer: String, val special: Boolean)
+    val holiday: String, val parsha: String, val specialParsha: String, val omer: String, val special: Boolean,
+    val category: String? = null, val candleLighting: Boolean = false)
 data class MonthHeader(val label: String, val start: LocalDate, val endExclusive: LocalDate, val selected: Boolean)
 data class MonthModel(val primary: MonthHeader, val secondary: List<MonthHeader>, val days: List<CalendarDay>)
 
@@ -22,13 +23,20 @@ class CalendarEngine(private val calculations: CalculationEngine = CalculationEn
             isUseModernHolidays = settings.modernHolidays
         }
         val f = formatter(settings.labels == LabelLanguage.HEBREW)
-        val schedules = settings.inIsrael != null
         return CalendarDay(date, jc.jewishDayOfMonth, f.format(jc),
-            if (schedules && settings.showHolidays) listOf(f.formatYomTov(jc), f.formatRoshChodesh(jc)).filter { it.isNotBlank() }.distinct().joinToString(" · ") else "",
-            if (schedules && settings.showParsha && date.dayOfWeek == DayOfWeek.SATURDAY) f.formatParshah(jc) else "",
-            if (schedules && settings.showParsha) f.formatSpecialParshah(jc) else "",
+            if (settings.showHolidays) listOf(f.formatYomTov(jc), f.formatRoshChodesh(jc)).filter { it.isNotBlank() }.distinct().joinToString(" · ") else "",
+            if (settings.showParsha && date.dayOfWeek == DayOfWeek.SATURDAY) f.formatParshah(jc) else "",
+            if (settings.showParsha) f.formatSpecialParshah(jc) else "",
             if (settings.showOmer && jc.dayOfOmer > 0) f.formatOmer(jc) else "",
-            date.dayOfWeek == DayOfWeek.SATURDAY || (schedules && jc.isYomTov))
+            date.dayOfWeek == DayOfWeek.SATURDAY || jc.isYomTov,
+            when {
+                date.dayOfWeek == DayOfWeek.SATURDAY -> "shabbat"
+                jc.isAssurBemelacha -> "holiday"
+                jc.isCholHamoed -> "chol"
+                jc.isTaanis -> "fast"
+                jc.isChanukah || jc.isPurim -> "festive"
+                else -> null
+            }, jc.hasCandleLighting())
     }
     fun monthBounds(date: LocalDate, system: CalendarSystem): Pair<LocalDate, LocalDate> = when (system) {
         CalendarSystem.GREGORIAN -> date.withDayOfMonth(1).let { it to it.plusMonths(1) }
@@ -74,8 +82,7 @@ class CalendarEngine(private val calculations: CalculationEngine = CalculationEn
         return (if (now >= boundary) civil.plusDays(1) else civil) to null
     }
     fun upcomingParsha(date: LocalDate, settings: AppSettings): String {
-        if (settings.inIsrael == null) return "Choose Israel or diaspora in Settings."
-        val jc = JewishCalendar(date).apply { inIsrael = settings.inIsrael }
+        val jc = JewishCalendar(date).apply { inIsrael = settings.inIsrael ?: false }
         return formatter(settings.labels == LabelLanguage.HEBREW).formatParshah(jc.upcomingParshah)
     }
     fun daf(date: LocalDate, hebrew: Boolean): String = runCatching {

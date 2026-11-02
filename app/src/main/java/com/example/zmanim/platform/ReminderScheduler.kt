@@ -54,7 +54,7 @@ class ReminderScheduler(private val context: Context, private val clock: Clock =
                 (0L..days + 2).map(first::plusDays)
             } }.distinct().sorted()
             for (date in candidateDates) {
-                val values = CalculationEngine().calculate(CalculationQuery(date, place, p, ids))
+                val values = CalculationEngine().calculate(CalculationQuery(date, place, p, ids, data.settings.inIsrael ?: false))
                 for (value in values) {
                     val instant = (value.value as? CalculationValue.Time)?.instant ?: continue
                     for (r in p.reminders.find { it.methodId == value.id }?.reminders.orEmpty()) {

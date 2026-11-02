@@ -45,7 +45,8 @@ class AppRepository(private val context: Context) {
                 store.edit { it[key] = pending.payload }
                 dao.clearSettings()
             }
-            var settings = store.data.first()[key]?.let { appJson.decodeFromString<AppSettings>(it) } ?: AppSettings()
+            val storedSettings = store.data.first()[key]
+            var settings = storedSettings?.let { appJson.decodeFromString<AppSettings>(it) } ?: AppSettings()
             var profiles = dao.profiles().map { appJson.decodeFromString<Profile>(it.payload) }
             if (!settings.migratedPrototype) {
                 val legacy = ZmanimPreferences(context).selectedMethods.first().map { it.id }
@@ -58,18 +59,24 @@ class AppRepository(private val context: Context) {
                 settings = settings.copy(migratedPrototype = true)
                 store.edit { it[key] = appJson.encodeToString(settings) }
             }
+            // Explicit legacy schedules are already established; never infer over them.
+            if (!settings.scheduleInitialized && settings.inIsrael != null) settings = settings.copy(scheduleInitialized = true)
             val places = dao.places().map { appJson.decodeFromString<Place>(it.payload) }
-            _state.value = RepositoryState.Ready(AppData(settings, profiles, places.filter { it.id != DEVICE_ID },
+            var loaded = AppData(settings, profiles, places.filter { it.id != DEVICE_ID },
                 dao.events().map { appJson.decodeFromString<Event>(it.payload) },
                 dao.widgets().map { appJson.decodeFromString<WidgetConfig>(it.payload) },
-                dao.exports().map { appJson.decodeFromString<ExportLink>(it.payload) }, places.find { it.id == DEVICE_ID }))
+                dao.exports().map { appJson.decodeFromString<ExportLink>(it.payload) }, places.find { it.id == DEVICE_ID })
+            loaded = initializeSchedule(loaded)
+            if (storedSettings != appJson.encodeToString(loaded.settings)) store.edit { it[key] = appJson.encodeToString(loaded.settings) }
+            _state.value = RepositoryState.Ready(loaded)
         } catch (e: Exception) { _state.value = RepositoryState.Failed(e.message ?: "Your data could not be loaded. Retry to keep it intact.") }
     }
 
     suspend fun update(change: (AppData) -> AppData) = withContext(Dispatchers.IO) {
         mutex.withLock {
             val old = data
-            val next = change(old)
+            var next = change(old)
+            next = initializeSchedule(next)
             if (old == next) return@withContext
             val dao = db.dao()
             db.runInTransaction {
@@ -103,6 +110,12 @@ class AppRepository(private val context: Context) {
         update { d -> d.copy(profiles = d.profiles.filterNot { it.id == profile.id } + profile,
             settings = if (d.settings.activeProfileId == null) d.settings.copy(activeProfileId = profile.id) else d.settings) }
     }
+    suspend fun updateProfile(id: String, change: (Profile) -> Profile) = update { data ->
+        val current = data.profile(id) ?: error("This profile no longer exists.")
+        val updated = change(current)
+        CalculationEngine().validateProfile(updated)
+        data.copy(profiles = data.profiles.map { if (it.id == id) updated else it })
+    }
     suspend fun deleteProfile(id: String) = update { d ->
         require(d.events.none { it.profileId == id }) { "This profile is used by events. Change those events before deleting it." }
         require(d.widgets.none { it.profileId == id }) { "This profile is used by a widget. Reconfigure that widget first." }
@@ -114,6 +127,7 @@ class AppRepository(private val context: Context) {
         fun mapped(id: String) = ids[id] ?: id
         saveProfile(profile.copy(id = newId(), name = "${profile.name} copy", selected = profile.selected.map(::mapped),
             custom = profile.custom.map { it.copy(id = mapped(it.id), base = mapped(it.base), dayStart = mapped(it.dayStart), dayEnd = mapped(it.dayEnd)) },
+            options = profile.options.copy(candleLightingNightfallId = profile.options.candleLightingNightfallId?.let(::mapped)),
             reminders = profile.reminders.map { it.copy(methodId = mapped(it.methodId), reminders = it.reminders.map { r -> r.copy(id = newId()) }) }))
     }
     suspend fun savePlace(place: Place) { place.validate(); update { it.copy(places = it.places.filterNot { p -> p.id == place.id } + place) } }
@@ -159,4 +173,12 @@ class AppRepository(private val context: Context) {
             }
         }
     }
+}
+
+/** Best-effort offline timezone inference, performed once; explicit choices always win. */
+internal fun initializeSchedule(data: AppData): AppData {
+    if (data.settings.scheduleInitialized) return data
+    if (data.settings.inIsrael != null) return data.copy(settings = data.settings.copy(scheduleInitialized = true))
+    val place = data.place() ?: return data
+    return data.copy(settings = data.settings.copy(inIsrael = place.zoneId == "Asia/Jerusalem", scheduleInitialized = true))
 }

@@ -4,6 +4,10 @@ package com.example.zmanim.ui
 fun localizeMessage(message: String, hebrew: Boolean): String {
     if (!hebrew) return message
     val translated = mapOf(
+        "Choose a nightfall method for holiday candle lighting in this profile." to "יש לבחור בפרופיל שיטת צאת הכוכבים להדלקת נרות בחג.",
+        "Holiday nightfall cannot depend on candle lighting." to "צאת הכוכבים לחג אינו יכול להיות תלוי בהדלקת נרות.",
+        "Choose a nightfall method or custom time for holiday candle lighting." to "יש לבחור שיטת צאת הכוכבים או זמן אישי להדלקת נרות בחג.",
+        "Selection could not be saved. Open Choose zmanim to try again." to "לא ניתן לשמור את הבחירה. יש לפתוח את בחירת הזמנים ולנסות שוב.",
         "Enter a place name." to "יש להזין שם מקום.",
         "Latitude must be between −90 and 90." to "קו הרוחב חייב להיות בין 90− ל־90.",
         "Longitude must be between −180 and 180." to "קו האורך חייב להיות בין 180− ל־180.",

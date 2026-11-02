@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zmanim.data.OfflinePlaces
@@ -22,6 +23,8 @@ import java.time.ZoneId
     var editing by rememberDraft<Place?>("place-open", null)
     var deletion by remember { mutableStateOf<Place?>(null) }
     val scope = rememberCoroutineScope()
+    val locationBusy by model.locationBusy.collectAsStateWithLifecycle()
+    val locationError by model.locationError.collectAsStateWithLifecycle()
     LaunchedEffect(query) {
         if (query.trim().length < 2) { cities = emptyList(); searching = false; return@LaunchedEffect }
         searching = true
@@ -30,29 +33,39 @@ import java.time.ZoneId
         catch (e: Exception) { error = e.message }
         finally { if (currentCoroutineContext().isActive) searching = false }
     }
-    EditorDialog(tr("Locations", "מקומות"), false, onDismiss, {}, tr("Done", "סיום")) {
+    EditorDialog(tr("Locations", "מקומות"), false, onDismiss, {}, tr("Done", "סיום"), live = true) {
         Text(tr("Active location: ", "המקום הפעיל: ") + (s.data.place()?.name ?: tr("None selected", "לא נבחר מקום")))
-        Toggle(tr("Follow my location", "המיקום שלי"), s.data.settings.location.mode == LocationMode.FOLLOW,
-            { follow -> if (follow) model.settings { it.copy(location = LocationBinding(LocationMode.FOLLOW)) } else model.settings { it.copy(location = LocationBinding()) } })
+        fun locate(follow: Boolean) {
+            if (!model.useDeviceLocation(follow)) permission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+        }
+        Button(onClick = { locate(false) }, enabled = !locationBusy, modifier = Modifier.fillMaxWidth()) { Text(tr("Use current location", "שימוש במיקום הנוכחי")) }
+        Text(tr("Use a snapshot of your current position, or follow your location as it changes.", "ניתן להשתמש בנקודת המיקום הנוכחית, או לעקוב אחר המיקום המשתנה."))
+        Toggle(tr("Follow my location", "מעקב אחר המיקום שלי"), s.data.settings.location.mode == LocationMode.FOLLOW, { follow ->
+            if (follow) locate(true)
+            else model.act {
+                val fix = model.repository.data.devicePlace
+                if (fix != null) {
+                    val snapshot = fix.copy(id = newId(), name = "Current location", obtainedAt = null, accuracyMeters = null)
+                    model.repository.update { it.copy(places = it.places + snapshot, settings = it.settings.copy(location = LocationBinding(savedId = snapshot.id))) }
+                } else model.repository.settings { it.copy(location = LocationBinding(savedId = s.data.places.firstOrNull()?.id)) }
+            }
+        }, enabled = !locationBusy)
+        if (locationBusy) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text(tr("Finding your location…", "מאתר את המיקום…")) }
+        locationError?.let { Notice(localizeMessage(it, LocalHebrew.current), true, action = {
+            TextButton(onClick = { locate(s.data.settings.location.mode == LocationMode.FOLLOW) }) { Text(tr("Retry", "ניסיון חוזר")) }
+        }) }
         if (s.data.settings.location.mode == LocationMode.FOLLOW) {
-            Text(s.data.devicePlace?.let { "${it.latitude}, ${it.longitude} · ${it.zoneId}" } ?: tr("No device location yet.", "טרם התקבל מיקום מהמכשיר."))
-            Button(onClick = {
-                if (!model.app.location.hasAccess()) permission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
-                else scope.launch {
-                    searching = true
-                    try { model.refreshLocation(); error = null } catch (e: Exception) { error = e.message } finally { searching = false }
-                }
-            }, enabled = !searching) { Text(tr("Refresh device location", "רענון מיקום המכשיר")) }
-            s.data.devicePlace?.let { device -> TextButton(onClick = {
-                editing = device.copy(id = newId(), name = "My place", obtainedAt = null, accuracyMeters = null)
-            }) { Text(tr("Save this fix as a place", "שמירת מיקום זה כמקום")) } }
-            if (!model.app.location.hasAccess()) Text(tr("After granting permission, tap Refresh again.", "לאחר מתן הרשאה, יש ללחוץ שוב על רענון."))
+            s.data.devicePlace?.let { fix ->
+                Text("\u2066${fix.latitude}, ${fix.longitude} · ${fix.zoneId}\u2069", style = MaterialTheme.typography.bodySmall)
+                fix.obtainedAt?.let { Text(tr("Updated: ", "עודכן: ") + java.time.Instant.ofEpochMilli(it).atZone(fix.zone()).format(java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm"))) }
+            }
+            TextButton(onClick = { locate(true) }, enabled = !locationBusy) { Text(tr("Refresh device location", "רענון מיקום המכשיר")) }
         }
         error?.let { Notice(it, true) }
         Section(tr("Saved places", "מקומות שמורים")) {
             if (s.data.places.isEmpty()) Text(tr("No saved places. Search for a city or enter coordinates.", "אין מקומות שמורים. אפשר לחפש עיר או להזין קואורדינטות."))
             s.data.places.forEach { place ->
-                Text(place.name, style = MaterialTheme.typography.titleMedium)
+                Text((if (s.data.settings.location.savedId == place.id) "✓ " else "") + place.name, style = MaterialTheme.typography.titleMedium)
                 Text("\u2066${place.latitude}, ${place.longitude} · ${place.zoneId}\u2069", style = MaterialTheme.typography.bodySmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { model.settings { it.copy(location = LocationBinding(savedId = place.id)) } }) { Text(tr("Use this place", "בחירת מקום זה")) }
@@ -69,7 +82,9 @@ import java.time.ZoneId
             if (!searching && query.length >= 2 && cities.isEmpty()) Text(tr("No matching cities. Enter coordinates manually.", "לא נמצאו ערים. ניתן להזין קואורדינטות ידנית."))
             OutlinedButton(onClick = { editing = Place(name = "", latitude = 0.0, longitude = 0.0, zoneId = ZoneId.systemDefault().id) }) { Text(tr("Enter a place manually", "הזנת מקום ידנית")) }
         }
-        Text(tr("City data: GeoNames, CC BY 4.0. Timezone boundaries: OpenStreetMap / timezone-boundary-builder, ODbL 1.0.", "נתוני ערים: GeoNames, ברישיון CC BY 4.0. גבולות אזורי זמן: OpenStreetMap / timezone-boundary-builder, ברישיון ODbL 1.0."), style = MaterialTheme.typography.bodySmall)
+        var attribution by remember { mutableStateOf(false) }
+        TextButton(onClick = { attribution = !attribution }) { Text(tr("Location data credits", "מקורות נתוני המיקום")) }
+        if (attribution) Text("GeoNames · CC BY 4.0; OpenStreetMap / timezone-boundary-builder · ODbL 1.0", style = MaterialTheme.typography.bodySmall)
     }
     editing?.let { PlaceEditor(it, model) { editing = null } }
     deletion?.let { place -> ConfirmDialog(tr("Delete ${place.name}?", "למחוק את ${place.name}?"),

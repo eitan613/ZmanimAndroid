@@ -12,6 +12,7 @@ import java.time.*
 import java.util.Locale
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.channels.Channel
 
 data class DayZmanim(val date: LocalDate, val values: List<CalculatedZman>)
 data class ScreenData(val data: AppData, val date: LocalDate, val now: Instant,
@@ -30,6 +31,8 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
     val state = repository.state
     val message = MutableSharedFlow<String>(extraBufferCapacity = 4)
     private var ticker: Job? = null
+    private val profileWrites = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    fun queueProfileWrite(action: suspend () -> Unit) { profileWrites.trySend(action) }
     fun visible(visible: Boolean) {
         ticker?.cancel(); ticker = null
         if (visible) ticker = viewModelScope.launch {
@@ -45,6 +48,9 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
         }
     }
     init {
+        viewModelScope.launch { for (action in profileWrites) {
+            try { action() } catch (e: CancellationException) { throw e } catch (e: Exception) { message.emit(e.message ?: "Save failed. Try again.") }
+        } }
         viewModelScope.launch {
             // Recompute on data/day/window changes, not on every countdown tick.
             combine(repository.state, selectedDay, timelineBounds, revision) { state, epoch, bounds, _ -> Triple(state, epoch, bounds) }
@@ -69,7 +75,7 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
                         val timeline = if (place == null || profile == null || profile.selected.isEmpty()) emptyList() else
                             (bounds.first..bounds.second).map { offset ->
                                 val day = date.plusDays(offset)
-                                DayZmanim(day, CalculationEngine().calculate(CalculationQuery(day, place, profile)).filter { z ->
+                                DayZmanim(day, CalculationEngine().calculate(CalculationQuery(day, place, profile, inIsrael = data.settings.inIsrael ?: false)).filter { z ->
                                     val group = MethodCatalog.byId[z.id]?.group ?: "custom"
                                     group !in profile.hiddenGroups
                                 })
@@ -93,8 +99,9 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
         select(if (!years && data.settings.calendarView != CalendarView.MONTH) date.plusDays(if (data.settings.calendarView == CalendarView.WEEK) amount * 7L else amount.toLong())
             else CalendarEngine().shift(date, data.settings.primaryCalendar, amount, years))
     }
-    fun extendTimeline(before: Boolean) {
+    fun extendTimeline(before: Boolean, expectedEdge: LocalDate) {
         val (a, b) = timelineBounds.value
+        if (LocalDate.ofEpochDay(selectedDay.value).plusDays(if (before) a else b) != expectedEdge) return
         timelineBounds.value = if (before) (a - 7) to if (b - a >= 56) b - 7 else b
         else (if (b - a >= 56) a + 7 else a) to b + 7
     }
@@ -103,6 +110,41 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
         try { action() } catch (e: Exception) { message.emit(e.message ?: "The change could not be saved. Try again.") }
     }
     fun settings(change: (AppSettings) -> AppSettings) = act { repository.settings(change) }
+    private var pendingFollow: Boolean? = null
+    private val _locationBusy = MutableStateFlow(false)
+    val locationBusy = _locationBusy.asStateFlow()
+    private val _locationError = MutableStateFlow<String?>(null)
+    val locationError = _locationError.asStateFlow()
+    fun useDeviceLocation(follow: Boolean): Boolean {
+        pendingFollow = follow
+        if (!app.location.hasAccess()) return false
+        acquireDeviceLocation(follow)
+        return true
+    }
+    fun permissionsReturned() {
+        val follow = pendingFollow ?: return
+        if (app.location.hasAccess()) acquireDeviceLocation(follow)
+        else { pendingFollow = null; _locationError.value = "Allow location access or choose a saved place." }
+    }
+    private fun acquireDeviceLocation(follow: Boolean) {
+        pendingFollow = null
+        if (_locationBusy.value) return
+        _locationBusy.value = true; _locationError.value = null
+        viewModelScope.launch {
+            try {
+                val fix = app.location.refresh()
+                repository.update { data ->
+                    if (follow) data.copy(devicePlace = fix, settings = data.settings.copy(location = LocationBinding(LocationMode.FOLLOW)))
+                    else {
+                        val snapshot = fix.copy(id = newId(), name = "Current location", obtainedAt = null, accuracyMeters = null)
+                        data.copy(devicePlace = fix, places = data.places + snapshot, settings = data.settings.copy(location = LocationBinding(savedId = snapshot.id)))
+                    }
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _locationError.value = e.message ?: "No location fix was obtained. Try again outdoors or choose a saved place." }
+            finally { _locationBusy.value = false }
+        }
+    }
     suspend fun refreshLocation() {
         val place = app.location.refresh()
         repository.update { it.copy(devicePlace = place) }

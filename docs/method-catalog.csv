@@ -22,8 +22,8 @@ sof-zman-shma-gra,shema,Latest Shema Vilna Gaon · Day: Sunrise (profile elevati
 sof-zman-shma-mga72-minutes,shema,Latest Shema Magen Avraham 72 minutes · Day: Dawn 72 minutes → Nightfall 72 minutes,Instant,,True,True,Pending owner review
 tzais72-minutes,nightfall,Nightfall 72 minutes,Instant,,True,False,Pending owner review
 candle-lighting,candles,Candle Lighting,Instant,Candle-lighting offset,False,False,Pending owner review
-sof-zman-tfila-gra,prayer,Latest prayer Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
-sof-zman-tfila-mga72-minutes,prayer,Latest prayer Magen Avraham 72 minutes · Day: Dawn 72 minutes → Nightfall 72 minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila-gra,prayer,Latest teffilah Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
+sof-zman-tfila-mga72-minutes,prayer,Latest teffilah Magen Avraham 72 minutes · Day: Dawn 72 minutes → Nightfall 72 minutes,Instant,,True,True,Pending owner review
 mincha-gedola-gra,mincha-gedolah,Earliest Mincha Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
 mincha-ketana-gra,mincha-ketanah,Mincha ketanah Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
 plag-hamincha-gra,plag,Plag Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
@@ -77,16 +77,16 @@ sof-zman-shma3-hours-before-chatzos,shema,Latest Shema 3 hours Before Chatzos ·
 sof-zman-shma-mga120-minutes,shema,Latest Shema Magen Avraham 120 minutes · Day: Dawn 120 minutes → Nightfall 120 minutes,Instant,,True,True,Pending owner review
 sof-zman-shma-alos16-point1-to-sunset,shema,Latest Shema Dawn 16.1To Sunset · Day: Dawn 16.1° below horizon → Sunset (profile elevation policy),Instant,,True,False,Pending owner review
 sof-zman-shma-alos16-point1-degrees-to-tzais-geonim7-point083-degrees,shema,Latest Shema Dawn 16.1° below horizon To Nightfall Geonim 7.083° below horizon · Day: Dawn 16.1° below horizon → Nightfall Geonim 7.083° below horizon,Instant,,False,False,Pending owner review
-sof-zman-tfila-mga19-point8-degrees,prayer,Latest prayer Magen Avraham 19.8° below horizon · Day: Dawn 19.8° below horizon → Nightfall 19.8° below horizon,Instant,,False,True,Pending owner review
-sof-zman-tfila-mga16-point1-degrees,prayer,Latest prayer Magen Avraham 16.1° below horizon · Day: Dawn 16.1° below horizon → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
-sof-zman-tfila-mga18-degrees,prayer,Latest prayer Magen Avraham 18° below horizon · Day: Dawn 18° below horizon → Nightfall 18° below horizon,Instant,,False,True,Pending owner review
-sof-zman-tfila-mga72-minutes-zmanis,prayer,Latest prayer Magen Avraham 72 temporal minutes · Day: Dawn 72 temporal minutes → Nightfall 72 temporal minutes,Instant,,True,True,Pending owner review
-sof-zman-tfila-mga90-minutes,prayer,Latest prayer Magen Avraham 90 minutes · Day: Dawn 90 minutes → Nightfall 90 minutes,Instant,,True,True,Pending owner review
-sof-zman-tfila-mga90-minutes-zmanis,prayer,Latest prayer Magen Avraham 90 temporal minutes · Day: Dawn 90 temporal minutes → Nightfall 90 temporal minutes,Instant,,True,True,Pending owner review
-sof-zman-tfila-mga96-minutes,prayer,Latest prayer Magen Avraham 96 minutes · Day: Dawn 96 minutes → Nightfall 96 minutes,Instant,,True,True,Pending owner review
-sof-zman-tfila-mga96-minutes-zmanis,prayer,Latest prayer Magen Avraham 96 temporal minutes · Day: Dawn 96 temporal minutes → Nightfall 96 temporal minutes,Instant,,True,True,Pending owner review
-sof-zman-tfila-mga120-minutes,prayer,Latest prayer Magen Avraham 120 minutes · Day: Dawn 120 minutes → Nightfall 120 minutes,Instant,,True,True,Pending owner review
-sof-zman-tfila2-hours-before-chatzos,prayer,Latest prayer 2 hours Before Chatzos · Day: Sea Level Sunrise → Sea Level Sunset,Instant,,False,False,Pending owner review
+sof-zman-tfila-mga19-point8-degrees,prayer,Latest teffilah Magen Avraham 19.8° below horizon · Day: Dawn 19.8° below horizon → Nightfall 19.8° below horizon,Instant,,False,True,Pending owner review
+sof-zman-tfila-mga16-point1-degrees,prayer,Latest teffilah Magen Avraham 16.1° below horizon · Day: Dawn 16.1° below horizon → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
+sof-zman-tfila-mga18-degrees,prayer,Latest teffilah Magen Avraham 18° below horizon · Day: Dawn 18° below horizon → Nightfall 18° below horizon,Instant,,False,True,Pending owner review
+sof-zman-tfila-mga72-minutes-zmanis,prayer,Latest teffilah Magen Avraham 72 temporal minutes · Day: Dawn 72 temporal minutes → Nightfall 72 temporal minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila-mga90-minutes,prayer,Latest teffilah Magen Avraham 90 minutes · Day: Dawn 90 minutes → Nightfall 90 minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila-mga90-minutes-zmanis,prayer,Latest teffilah Magen Avraham 90 temporal minutes · Day: Dawn 90 temporal minutes → Nightfall 90 temporal minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila-mga96-minutes,prayer,Latest teffilah Magen Avraham 96 minutes · Day: Dawn 96 minutes → Nightfall 96 minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila-mga96-minutes-zmanis,prayer,Latest teffilah Magen Avraham 96 temporal minutes · Day: Dawn 96 temporal minutes → Nightfall 96 temporal minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila-mga120-minutes,prayer,Latest teffilah Magen Avraham 120 minutes · Day: Dawn 120 minutes → Nightfall 120 minutes,Instant,,True,True,Pending owner review
+sof-zman-tfila2-hours-before-chatzos,prayer,Latest teffilah 2 hours Before Chatzos · Day: Sea Level Sunrise → Sea Level Sunset,Instant,,False,False,Pending owner review
 mincha-gedola30-minutes,mincha-gedolah,Earliest Mincha 30 minutes · Day: Sea Level Sunrise → Sea Level Sunset,Instant,,False,False,Pending owner review
 mincha-gedola72-minutes,mincha-gedolah,Earliest Mincha 72 minutes · Day: Midday → Nightfall 72 minutes,Instant,,True,True,Pending owner review
 mincha-gedola16-point1-degrees,mincha-gedolah,Earliest Mincha 16.1° below horizon · Day: Midday → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
@@ -133,7 +133,7 @@ tzais-geonim9-point75-degrees,nightfall,Nightfall Geonim 9.75° below horizon,In
 tzais60-minutes,nightfall,Nightfall 60 minutes,Instant,,True,False,Pending owner review
 tzais-ateret-torah,nightfall,Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
 sof-zman-shma-ateret-torah,shema,Latest Shema Ateret Torah · Day: Dawn 72 temporal minutes → Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
-sof-zman-tfila-ateret-torah,prayer,Latest prayer Ateret Torah · Day: Dawn 72 temporal minutes → Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
+sof-zman-tfila-ateret-torah,prayer,Latest teffilah Ateret Torah · Day: Dawn 72 temporal minutes → Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
 mincha-gedola-ateret-torah,mincha-gedolah,Earliest Mincha Ateret Torah · Day: Dawn 72 temporal minutes → Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
 mincha-ketana-ateret-torah,mincha-ketanah,Mincha ketanah Ateret Torah · Day: Dawn 72 temporal minutes → Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
 plag-hamincha-ateret-torah,plag,Plag Ateret Torah · Day: Dawn 72 temporal minutes → Nightfall Ateret Torah,Instant,Ateret Torah sunset offset,True,False,Pending owner review
@@ -165,7 +165,7 @@ sof-zman-biur-chametz-mga16-point1-degrees,chametz,Chametz disposal deadline Mag
 shaah-zmanis-baal-hatanya,duration,Temporal hour Baal Ha Tanya · Day: Sunrise Baal Ha Tanya → Sunset Baal Ha Tanya,Duration,,False,False,Pending owner review
 alos-baal-hatanya,dawn,Dawn Baal Ha Tanya,Instant,,False,False,Pending owner review
 sof-zman-shma-baal-hatanya,shema,Latest Shema Baal Ha Tanya · Day: Sunrise Baal Ha Tanya → Sunset Baal Ha Tanya,Instant,,False,True,Pending owner review
-sof-zman-tfila-baal-hatanya,prayer,Latest prayer Baal Ha Tanya · Day: Sunrise Baal Ha Tanya → Sunset Baal Ha Tanya,Instant,,False,True,Pending owner review
+sof-zman-tfila-baal-hatanya,prayer,Latest teffilah Baal Ha Tanya · Day: Sunrise Baal Ha Tanya → Sunset Baal Ha Tanya,Instant,,False,True,Pending owner review
 sof-zman-achilas-chametz-baal-hatanya,chametz,Chametz eating deadline Baal Ha Tanya,Instant,,False,False,Pending owner review
 sof-zman-biur-chametz-baal-hatanya,chametz,Chametz disposal deadline Baal Ha Tanya,Instant,,False,False,Pending owner review
 mincha-gedola-baal-hatanya,mincha-gedolah,Earliest Mincha Baal Ha Tanya · Day: Sunrise Baal Ha Tanya → Sunset Baal Ha Tanya,Instant,,False,True,Pending owner review
@@ -177,7 +177,7 @@ sof-zman-shma-mga16-point1-degrees-to-fixed-local-chatzos,shema,Latest Shema Mag
 sof-zman-shma-mga90-minutes-to-fixed-local-chatzos,shema,Latest Shema Magen Avraham 90 minutes To Fixed local Chatzos · Day: Dawn 90 minutes → Fixed local Midday,Instant,,True,False,Pending owner review
 sof-zman-shma-mga72-minutes-to-fixed-local-chatzos,shema,Latest Shema Magen Avraham 72 minutes To Fixed local Chatzos · Day: Dawn 72 minutes → Fixed local Midday,Instant,,True,False,Pending owner review
 sof-zman-shma-grasunrise-to-fixed-local-chatzos,shema,Latest Shema Vilna Gaon Sunrise To Fixed local Chatzos · Day: Sunrise (profile elevation policy) → Fixed local Midday,Instant,,True,False,Pending owner review
-sof-zman-tfila-grasunrise-to-fixed-local-chatzos,prayer,Latest prayer Vilna Gaon Sunrise To Fixed local Chatzos · Day: Sunrise (profile elevation policy) → Fixed local Midday,Instant,,True,False,Pending owner review
+sof-zman-tfila-grasunrise-to-fixed-local-chatzos,prayer,Latest teffilah Vilna Gaon Sunrise To Fixed local Chatzos · Day: Sunrise (profile elevation policy) → Fixed local Midday,Instant,,True,False,Pending owner review
 mincha-gedola-grafixed-local-chatzos30-minutes,mincha-gedolah,Earliest Mincha Vilna Gaon Fixed local Chatzos 30 minutes,Instant,,False,False,Pending owner review
 mincha-ketana-grafixed-local-chatzos-to-sunset,mincha-ketanah,Mincha ketanah Vilna Gaon Fixed local Chatzos To Sunset · Day: Fixed local Midday → Sunset (profile elevation policy),Instant,,True,False,Pending owner review
 plag-hamincha-grafixed-local-chatzos-to-sunset,plag,Plag Vilna Gaon Fixed local Chatzos To Sunset · Day: Fixed local Midday → Sunset (profile elevation policy),Instant,,True,False,Pending owner review

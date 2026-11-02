@@ -148,7 +148,7 @@ class DomainTest {
         assertNotEquals(israel.holiday, diaspora.holiday)
         assertNotEquals(israel.parsha, diaspora.parsha)
         val unset = CalendarEngine().day(date, AppSettings())
-        assertTrue(unset.holiday.isEmpty()); assertTrue(unset.parsha.isEmpty())
+        assertEquals(diaspora.holiday, unset.holiday); assertEquals(diaspora.parsha, unset.parsha)
     }
     @Test fun namedShemaMethodsExplainTheirDayBoundaries() {
         val methods = MethodCatalog.methods.filter { it.group == "shema" && it.id.contains("mga") && !it.id.contains("fixed") }

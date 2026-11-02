@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
             val selectedOccurrence = occurrenceSnapshot?.restore()
             var nativeId by rememberSaveable { mutableStateOf<Long?>(null) }
             var nativeCalendar by rememberSaveable { mutableStateOf<Long?>(null) }
-            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { model.refresh() }
+            val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { model.permissionsReturned(); model.refresh() }
             LaunchedEffect(model, hebrew) { model.message.collect { snackbar.showSnackbar(localizeMessage(it, hebrew)) } }
             var initialNavigationDone by rememberSaveable { mutableStateOf(false) }
             var handledLaunch by rememberSaveable { mutableStateOf("") }
@@ -99,11 +99,29 @@ class MainActivity : ComponentActivity() {
             androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { model.visible(true); model.refresh(); onPauseOrDispose { model.visible(false) } }
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
                 NavigationBar {
-                    listOf(Triple("calendar", tr("Calendar", "לוח שנה"), Icons.Default.DateRange),
-                        Triple("zmanim", tr("Zmanim", "זמנים"), Icons.AutoMirrored.Filled.List),
-                        Triple("settings", tr("Settings", "הגדרות"), Icons.Default.Settings)).forEach { (path, label, icon) ->
-                        NavigationBarItem(selected = route == path, enabled = screen != null, onClick = { nav.navigate(path) { popUpTo(nav.graph.startDestinationId) { saveState = true }; launchSingleTop = true; restoreState = true } },
-                            icon = { Icon(icon, contentDescription = null) }, label = { Text(label) })
+                    val ready = screen
+                    listOf(
+                        Triple("gregorian", tr("Gregorian", "לועזי"), Icons.Default.DateRange),
+                        Triple("hebrew", tr("Hebrew", "עברי"), Icons.Default.DateRange),
+                        Triple("week", tr("Week", "שבוע"), Icons.Default.DateRange),
+                        Triple("day", tr("Day", "יום"), Icons.Default.DateRange),
+                        Triple("zmanim", tr("Zmanim", "זמנים"), Icons.AutoMirrored.Filled.List)
+                    ).forEach { (path, label, icon) ->
+                        val selected = route == "zmanim" && path == "zmanim" || route == "calendar" && when(path) {
+                            "gregorian" -> settings.calendarView == CalendarView.MONTH && settings.primaryCalendar == CalendarSystem.GREGORIAN
+                            "hebrew" -> settings.calendarView == CalendarView.MONTH && settings.primaryCalendar == CalendarSystem.HEBREW
+                            "week" -> settings.calendarView == CalendarView.WEEK
+                            "day" -> settings.calendarView == CalendarView.DAY
+                            else -> false
+                        }
+                        NavigationBarItem(selected = selected, enabled = ready != null, onClick = {
+                            if (path != "zmanim") model.settings { it.copy(
+                                calendarView = when(path) { "week" -> CalendarView.WEEK; "day" -> CalendarView.DAY; else -> CalendarView.MONTH },
+                                primaryCalendar = when(path) { "gregorian" -> CalendarSystem.GREGORIAN; "hebrew" -> CalendarSystem.HEBREW; else -> it.primaryCalendar }) }
+                            nav.navigate(if (path == "zmanim") "zmanim" else "calendar") {
+                                popUpTo(nav.graph.startDestinationId) { saveState = true }; launchSingleTop = true; restoreState = true
+                            }
+                        }, icon = { if (path in listOf("hebrew", "week", "day")) Text(when(path) { "hebrew" -> "א"; "week" -> "7"; else -> "1" }, style = MaterialTheme.typography.titleLarge) else Icon(icon, null) }, label = { Text(label, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) })
                     }
                 }
             }) { padding ->
@@ -125,11 +143,11 @@ class MainActivity : ComponentActivity() {
                                 } else { occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); editing = s.data.events.find { it.id == occurrence.eventId }; nativeId = null; nativeCalendar = null; dialog = "event-detail" }
                             }
                             NavHost(nav, startDestination = "calendar") {
-                                composable("calendar") { CalendarScreen(s, model, onNewEvent = { editing = Event(title = "", anchorDate = s.date.toString(), zoneId = s.data.place()?.zoneId ?: java.time.ZoneId.systemDefault().id,
+                                composable("calendar") { CalendarScreen(s, model, onNewEvent = { start -> editing = Event(title = "", anchorDate = start.date.toString(), localTime = (start.time ?: java.time.LocalTime.of(9, 0)).toString(), overlapPolicy = start.overlapPolicy, zoneId = s.data.place()?.zoneId ?: java.time.ZoneId.systemDefault().id,
                                         location = s.data.settings.location, profileId = s.data.settings.activeProfileId); nativeId = null; nativeCalendar = null; occurrenceSnapshot = null; dialog = "event" },
-                                    onZmanim = { nav.navigate("zmanim") }, onEvent = openEvent, onGoTo = { dialog = "go-to" }) }
-                                composable("zmanim") { ZmanimScreen(s, model, onProfiles = { dialog = "profiles" }, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocations = { dialog = "locations" }) }
-                                composable("settings") { SettingsScreen(s, model, permission, onProfiles = { dialog = "profiles" }, onLocations = { dialog = "locations" }, onBackup = { dialog = "backup" }) }
+                                    onZmanim = { nav.navigate("zmanim") }, onEvent = openEvent, onGoTo = { dialog = "go-to" }, onSettings = { nav.navigate("settings") }) }
+                                composable("zmanim") { ZmanimScreen(s, model, onProfiles = { dialog = "profiles" }, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocations = { dialog = "locations" }, onCustom = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "custom" } }, onGoTo = { dialog = "go-to" }, onSettings = { nav.navigate("settings") }) }
+                                composable("settings") { SettingsScreen(s, model, permission, onProfiles = { dialog = "profiles" }, onLocations = { dialog = "locations" }, onBackup = { dialog = "backup" }, onBack = { nav.popBackStack() }) }
                             }
                             when (dialog) {
                                 "event" -> EventEditor(s, model, editing, selectedOccurrence, nativeId, nativeCalendar, { dialog = null })
@@ -139,12 +157,13 @@ class MainActivity : ComponentActivity() {
                                     else occurrenceSnapshot = OccurrenceSnapshot.from(o.copy(key = scopeChoice))
                                 }) }
                                 "profiles" -> ProfilesDialog(s, model) { dialog = null }
-                                "methods" -> s.data.profile()?.let { MethodPicker(it, model) { dialog = null } }
+                                "methods" -> s.data.profile()?.let { MethodPicker(it, s, model, onCustom = { dialog = "custom" }) { dialog = null } }
+                                "custom" -> s.data.profile()?.let { CustomZmanDialog(it, s, model) { dialog = null } }
                                 "locations" -> LocationsDialog(s, model, permission) { dialog = null }
                                 "go-to" -> GoToDialog(s.date, { model.select(it); dialog = null }, { dialog = null })
                                 "backup" -> BackupDialog(s, model) { dialog = null }
                             }
-                            if (!s.data.settings.onboardingComplete) Onboarding(s, model, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocation = { dialog = "locations" })
+
                         }
                     }
                 }

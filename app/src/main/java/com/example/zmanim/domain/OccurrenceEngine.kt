@@ -121,12 +121,13 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
     }
 
     fun expand(event: Event, from: LocalDate, untilExclusive: LocalDate, data: AppData): List<Occurrence> =
-        dates(event, from, untilExclusive).map { occurrence(event, it, data) }
+        dates(event, from, untilExclusive).map { occurrence(event, it, data) }.filter { it.applicable }
 
     fun occurrence(event: Event, date: LocalDate, data: AppData): Occurrence {
         val zone = ZoneId.of(event.zoneId)
         var error: String? = null
         var allDay = false
+        var applicable = true
         val start: Instant? = when (event.timeKind) {
             EventTimeKind.ALL_DAY -> {
                 if (event.calendar == CalendarSystem.HEBREW && data.settings.hebrewDayBoundary == HebrewDayBoundary.SUNSET) {
@@ -150,10 +151,11 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
                 val place = data.place(event.location)
                 val profile = data.profile(event.profileId)
                 if (place == null || profile == null || event.methodId == null) { error = "The event calculation or location is missing."; null }
-                else when (val value = calculations.calculate(CalculationQuery(date, place, profile, listOf(event.methodId))).first().value) {
+                else when (val value = calculations.calculate(CalculationQuery(date, place, profile, listOf(event.methodId), data.settings.inIsrael ?: false)).first().value) {
                     is CalculationValue.Time -> try { value.instant.plusMillis(checkedOffsetMillis(event.offsetMinutes * 60000)) }
                     catch (e: IllegalArgumentException) { error = e.message; null }
                     catch (e: ArithmeticException) { error = "The formula exceeds the supported time range."; null }
+                    CalculationValue.NotApplicable -> { applicable = false; null }
                     is CalculationValue.Unavailable -> { error = value.reason; null }
                     else -> { error = "A duration is not a timed occurrence."; null }
                 }
@@ -163,6 +165,6 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
         else if (event.timeKind == EventTimeKind.ALL_DAY) data.place(event.location)?.let { calculations.seaLevelSunset(date, it) }.also { if (it == null) error = "The closing sunset is unavailable." }
         else start.plus(Duration.ofMinutes(event.durationMinutes))
         return Occurrence("${event.id}:$date", event.id, date, event.title, if (error == null) start else null,
-            if (error == null) end else null, allDay, event.zoneId, error)
+            if (error == null) end else null, allDay, event.zoneId, error, applicable = applicable)
     }
 }

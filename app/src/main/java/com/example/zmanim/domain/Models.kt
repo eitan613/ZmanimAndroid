@@ -57,6 +57,7 @@ data class CalculationOptions(
     val astronomicalHalfDays: Boolean = false,
     val candleLightingMinutes: Double? = null,
     val ateretTorahMinutes: Double? = null,
+    val candleLightingNightfallId: String? = null,
 )
 
 @Serializable
@@ -115,16 +116,18 @@ data class Event(
 
 @Serializable
 data class AppSettings(
-    val appearance: Appearance = Appearance.SYSTEM, val language: Language = Language.SYSTEM,
-    val labels: LabelLanguage = LabelLanguage.TRANSLITERATED,
+    val appearance: Appearance = Appearance.SYSTEM, val language: Language = Language.ENGLISH,
+    val labels: LabelLanguage = LabelLanguage.HEBREW,
     val openingView: OpeningView = OpeningView.CALENDAR,
-    val primaryCalendar: CalendarSystem = CalendarSystem.GREGORIAN,
+    val primaryCalendar: CalendarSystem = CalendarSystem.HEBREW,
     val calendarView: CalendarView = CalendarView.MONTH,
-    val mondayFirst: Boolean = false, val reverseGrid: Boolean = false,
+    val mondayFirst: Boolean = false, val reverseGrid: Boolean = true,
     val swapScrollAxes: Boolean = false, val doubleTap: DoubleTapAction = DoubleTapAction.ZMANIM,
     val showHolidays: Boolean = true, val modernHolidays: Boolean = false,
-    val showParsha: Boolean = true, val showOmer: Boolean = false, val colorSpecialDays: Boolean = false,
-    val holidayTint: Long = 0xFF3F6C98, val shabbatTint: Long = 0xFF765A8F,
+    val showParsha: Boolean = true, val showOmer: Boolean = false, val colorSpecialDays: Boolean = true,
+    val holidayTint: Long = 0xFFF7E7CC, val shabbatTint: Long = 0xFFF7E7CC,
+    val specialDayColors: Map<String, Long> = emptyMap(),
+    val scheduleInitialized: Boolean = false,
     val showDeviceEvents: Boolean = true, val inIsrael: Boolean? = null,
     val hebrewDayBoundary: HebrewDayBoundary? = null,
     val use24Hour: Boolean? = null, val showSeconds: Boolean = false,
@@ -172,6 +175,7 @@ data class CalculationDetails(
     val effectiveElevation: String, val options: CalculationOptions,
 )
 sealed interface CalculationValue {
+    data object NotApplicable : CalculationValue
     data class Time(val instant: Instant) : CalculationValue
     data class Length(val duration: Duration) : CalculationValue
     data class Unavailable(val reason: String) : CalculationValue
@@ -181,6 +185,7 @@ data class Occurrence(
     val key: String, val eventId: String, val date: LocalDate, val title: String,
     val start: Instant?, val end: Instant?, val allDay: Boolean, val zoneId: String,
     val unavailableReason: String? = null, val sourceCalendarId: Long? = null, val providerId: Long? = null,
+    val applicable: Boolean = true,
 )
 
 @Serializable

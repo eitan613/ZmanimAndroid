@@ -2,6 +2,7 @@ package com.example.zmanim.domain
 
 import com.kosherjava.zmanim.ComprehensiveZmanimCalendar
 import com.kosherjava.zmanim.util.GeoLocation
+import com.kosherjava.zmanim.hebrewcalendar.JewishCalendar
 import java.time.*
 import kotlin.math.*
 
@@ -15,7 +16,7 @@ data class ZmanGroup(val id: String, val english: String, val hebrew: String)
 val zmanGroups = listOf(
     ZmanGroup("dawn", "Alos · dawn", "עלות השחר"), ZmanGroup("misheyakir", "Misheyakir", "משיכיר"),
     ZmanGroup("sunrise", "Sunrise", "הנץ החמה"), ZmanGroup("shema", "Latest Shema", "סוף זמן קריאת שמע"),
-    ZmanGroup("prayer", "Latest prayer", "סוף זמן תפילה"), ZmanGroup("chatzos", "Chatzos", "חצות"),
+    ZmanGroup("prayer", "Latest teffilah", "סוף זמן תפילה"), ZmanGroup("chatzos", "Chatzos", "חצות"),
     ZmanGroup("mincha-gedolah", "Mincha gedolah", "מנחה גדולה"), ZmanGroup("mincha-ketanah", "Mincha ketanah", "מנחה קטנה"),
     ZmanGroup("plag", "Plag", "פלג המנחה"), ZmanGroup("sunset", "Sunset", "שקיעה"),
     ZmanGroup("nightfall", "Tzeis · nightfall", "צאת הכוכבים"), ZmanGroup("duration", "Sha’ah zmanis · durations", "שעה זמנית"),
@@ -24,7 +25,7 @@ val zmanGroups = listOf(
     ZmanGroup("custom", "Custom zmanim", "זמנים אישיים"),
 )
 
-data class CalculationQuery(val date: LocalDate, val place: Place, val profile: Profile, val methodIds: List<String> = profile.selected)
+data class CalculationQuery(val date: LocalDate, val place: Place, val profile: Profile, val methodIds: List<String> = profile.selected, val inIsrael: Boolean = false)
 
 class CalculationEngine {
     fun calculate(query: CalculationQuery): List<CalculatedZman> {
@@ -44,6 +45,7 @@ class CalculationEngine {
             p.options.candleLightingMinutes?.let { candleLightingOffset = it }
             p.options.ateretTorahMinutes?.let { ateretTorahSunsetOffset = it }
         }
+        val jewishDay = JewishCalendar(query.date).apply { inIsrael = query.inIsrael }
         val memo = mutableMapOf<String, CalculationValue>()
         val visiting = mutableSetOf<String>()
         fun evaluate(id: String): CalculationValue {
@@ -52,7 +54,14 @@ class CalculationEngine {
             val method = MethodCatalog.byId[id]
             val custom = p.custom.find { it.id == id }
             val result = try {
-                if (elevationError != null && method?.usesElevation == true) {
+                if (method?.group == "chametz" && !(jewishDay.jewishMonth == JewishCalendar.NISSAN && jewishDay.jewishDayOfMonth == 14)) {
+                    CalculationValue.NotApplicable
+                } else if (method?.needsCandleOffset == true && !jewishDay.hasCandleLighting()) {
+                    CalculationValue.NotApplicable
+                } else if (method?.needsCandleOffset == true && query.date.dayOfWeek != DayOfWeek.FRIDAY && jewishDay.isAssurBemelacha) {
+                    p.options.candleLightingNightfallId?.let { evaluate(it) }
+                        ?: CalculationValue.Unavailable("Choose a nightfall method for holiday candle lighting in this profile.")
+                } else if (elevationError != null && method?.usesElevation == true) {
                     CalculationValue.Unavailable(elevationError)
                 } else if (method != null) {
                     when {
@@ -61,9 +70,11 @@ class CalculationEngine {
                         else -> when (val value = method.evaluate(calendar)) {
                             is Instant -> CalculationValue.Time(value)
                             is Duration -> CalculationValue.Length(value)
-                            else -> CalculationValue.Unavailable("The required solar or lunar event is not available for this date and location.")
+                            else -> if (method.group == "lunar") CalculationValue.NotApplicable else CalculationValue.Unavailable("The required solar or lunar event is not available for this date and location.")
                         }
                     }
+                } else if (custom != null && custom.references().any { evaluate(it) == CalculationValue.NotApplicable }) {
+                    CalculationValue.NotApplicable
                 } else if (custom != null) {
                     fun instant(ref: String): Instant = when (val value = evaluate(ref)) {
                         is CalculationValue.Time -> value.instant
@@ -96,11 +107,35 @@ class CalculationEngine {
             memo[id] = result
             return result
         }
+        fun usesElevation(id: String, seen: Set<String> = emptySet()): Boolean {
+            if (id in seen) return false
+            MethodCatalog.byId[id]?.let { return it.usesElevation }
+            return p.custom.find { it.id == id }?.references()?.any { usesElevation(it, seen + id) } == true
+        }
+        fun referenceDescription(id: String): String = p.custom.find { it.id == id }?.let { formulaText(it, p.custom) }
+            ?: MethodCatalog.byId[id]?.let { effectiveMethodDescription(it, p) } ?: "Missing calculation"
         return query.methodIds.distinct().map { id ->
             val custom = p.custom.find { it.id == id }
-            val label = custom?.name ?: MethodCatalog.byId[id]?.let { effectiveMethodDescription(it, p) } ?: "Missing calculation"
-            CalculatedZman(id, label, evaluate(id), CalculationDetails(id, custom?.let { formulaText(it, p.custom) } ?: label,
-                query.date, place, if (!p.options.useElevation) "Sea level" else if (MethodCatalog.byId[id]?.usesElevation == false) "Elevation does not affect this method" else "${place.elevation} m", p.options))
+            val method = MethodCatalog.byId[id]
+            val label = custom?.name ?: method?.let { effectiveMethodDescription(it, p) } ?: "Missing calculation"
+            val holidayNightfall = method?.needsCandleOffset == true && query.date.dayOfWeek != DayOfWeek.FRIDAY && jewishDay.isAssurBemelacha
+            val effectiveId = if (holidayNightfall) p.options.candleLightingNightfallId ?: id else id
+            val formula = when {
+                custom != null -> formulaText(custom, p.custom)
+                holidayNightfall -> p.options.candleLightingNightfallId?.let { "Holiday candle lighting · ${referenceDescription(it)}" }
+                    ?: "Choose a nightfall method for holiday candle lighting in this profile."
+                method?.needsCandleOffset == true -> p.options.candleLightingMinutes?.let { "$it minutes before sea-level sunset" }
+                    ?: "Choose a candle-lighting offset in this profile."
+                method?.needsAteretOffset == true -> "$label · Nightfall: ${p.options.ateretTorahMinutes?.let { "$it minutes after sunset" } ?: "choose an offset"}"
+                else -> label
+            }
+            val elevation = when {
+                !p.options.useElevation -> "Sea level"
+                !usesElevation(effectiveId) -> "Elevation does not affect this method"
+                place.elevation == null -> "Elevation not provided"
+                else -> "${place.elevation} m"
+            }
+            CalculatedZman(id, label, evaluate(id), CalculationDetails(id, formula, query.date, place, elevation, p.options))
         }
     }
 
@@ -128,7 +163,12 @@ class CalculationEngine {
             }
             active.remove(id); visited.add(id)
         }
+        pNightfallValidation(profile)
         definitions.keys.forEach(::visit)
+        // A nightfall formula may not depend back on candle lighting.
+        fun dependsOnCandles(id: String, seen: Set<String> = emptySet()): Boolean =
+            id == "candle-lighting" || id !in seen && definitions[id]?.references()?.any { dependsOnCandles(it, seen + id) } == true
+        require(profile.options.candleLightingNightfallId?.let { !dependsOnCandles(it) } != false) { "Holiday nightfall cannot depend on candle lighting." }
         require(profile.selected.all { it in definitions || it in MethodCatalog.byId }) { "A selected calculation does not exist." }
         listOfNotNull(profile.options.candleLightingMinutes, profile.options.ateretTorahMinutes).forEach {
             require(it.isFinite() && it >= 0 && it <= 1440) { "Offsets must be between 0 and 1440 minutes." }
@@ -166,4 +206,11 @@ internal fun checkedOffsetMillis(value: Double): Long {
         "The formula exceeds the supported time range."
     }
     return value.roundToLong()
+}
+
+private fun pNightfallValidation(profile: Profile) {
+    val id = profile.options.candleLightingNightfallId ?: return
+    require(MethodCatalog.byId[id]?.group == "nightfall" || profile.custom.any { it.id == id }) {
+        "Choose a nightfall method or custom time for holiday candle lighting."
+    }
 }

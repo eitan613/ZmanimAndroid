@@ -36,17 +36,44 @@ application ID: `com.example.zmanim`.
 
 ## Using the app
 
-First launch asks explicitly for Israel/diaspora. Choose zmanim individually or
-open the calendar without selecting any methods. Save a location or enable
-follow-location access to calculate zmanim. Method choices, custom formulas,
-elevation settings and reminder preferences belong to named profiles; locations
-and display preferences stay separate.
+The calendar opens immediately without a setup dialog. New installations use
+English controls, Hebrew calendar/zman labels, a Hebrew month, Sunday first,
+and right-to-left calendar days. Existing saved preferences are preserved.
 
-Settings contains Hebrew/Gregorian month preferences, day/week views, global
-Hebrew all-day boundaries, formatting, optional notifications, calendar selection,
-background-location access, and selective JSON export/import/sharing. Widgets are
-configured independently from the launcher. Precise reminders require Android
-access; an approximate fallback requires explicit acceptance.
+The bottom bar opens Gregorian month, Hebrew month, week, day, and zmanim views.
+The three-dot menu contains Today, Go to date, search, and Settings. Swipe the
+calendar to change periods; accessible period actions are also available.
+Double-tap an empty hour in week/day view to create an event at that date/time.
+
+Choose zmanim from the zmanim screen's menu; each selection saves immediately.
+Custom zmanim can be created directly from the Custom group or menu using minute
+offsets, solar angles, or temporal hours. Formulas remain drafts until saved.
+Profiles store calculation options and reminder choices; locations and display
+preferences stay separate. Method explanations describe calculations rather than
+religious rulings.
+
+The timeline loads days automatically in both directions. Back to now centers
+the next loaded zman. Seasonal methods are hidden outside applicable dates;
+missing calculation inputs or astronomical events still show an explanation.
+Candle lighting requires an explicit before-sunset offset and, for applicable
+holiday transitions, an explicitly selected nightfall method.
+
+Location offers a current-position snapshot, continuous following, offline city
+search, and saved places. Granting location permission continues the requested
+action. The first reliable active location initializes Israel/diaspora using its
+offline timezone (Asia/Jerusalem implies Israel); unknown location uses diaspora
+until initialization. The established setting stays fixed during travel and can
+always be changed manually.
+
+Settings has Display, Calendar, Zmanim, Permissions, and Data tabs. Calendar
+colors start with the PHP calendar palette, support category overrides, and can
+be reset. Permission status is separate from app feature switches; Android app
+permissions can be managed from Settings. Selective JSON backups include the
+new settings and profile options. Widgets remain independently configurable.
+Precise reminders require Android access; approximate delivery requires opt-in.
+
+See [the problem resolution checklist](docs/problem-resolution.md) for the
+mapping from the original feedback to implementation and validation.
 
 ## Development helpers and data
 
