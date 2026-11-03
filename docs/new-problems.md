@@ -1,0 +1,40 @@
+- words get cut off. not in the other app which is our inspiration [WhatsApp Image](../../../Downloads/WhatsApp%20Image%202026-11-03%20at%204.56.08%20PM.jpeg)
+- the app should highlight which screen its on (greg/hebrew/day,etc) on the button on the bottom 
+- instead of a setting: gregorian should show days LTR and hebrew RTL. by default. with options to change to always this or that. dropdown with 3 choices
+- spell out שבת. or have ש"ק
+- even when zman labels are hebrew temporal hour is still english. and some have a mix like tzais geonim 8.5
+- the highlighting for next zman should be different than the highlighting for the day blocks
+- in zman labels when hebrew is selected only hebrew words should be translated. for example תחת האופק should always just be below the horizon
+- event creation should be cleaned up
+  - recurrence calendar should only show if event is recurring
+  - what does "if the wall time does not exist" mean? same with if it happens twice
+  - occurance preview: the time is not human friendly
+  - whats the "calendar destination?" and why does it only have one option in the dropdown
+  - there should be a date picker (for hebrew and gregorian. whichever mode is chosen) for changing the event date. not a button that takes you to a dropdown you already have and text field
+  - on months view it should have a setting to show basics of events or not. not just only show # of events
+- being in settings shouldnt be a screen on top of calendar that you can choose a different calender format or zmanim and then if you go to zmanim and go back to calendar you end up on the settings. makes no sense. its its own screen.
+- the color special days toggle should only show if in light mode. unless we add colors for dark mode
+- whats the show time remaning toggle on the zmanim tab? shows time remaining until the next zman? maybe show for all of them. including seconds.
+- where/how do you set notifications/alarms for zmanim? i see setting to allow percise alarms. but i dont want to create events to get alarms/notifications for zmanim
+- locations management should be easier also:
+  - if its tied to calendars it shouldnt only be in zmanim
+  - something is wrong with "use current location" ![WhatsApp Image 2026-11-03 at 7.04.46 PM.jpeg](../../../Downloads/WhatsApp%20Image%202026-11-03%20at%207.04.46%20PM.jpeg)
+    - at least on my physical phone. i granted permissions. but on the emulator it works. although it saved it twice in current locations if i keep pressing it
+  - whats the "location credits"
+  - why cant it find my city (givat zev)?
+  - why dont you see reuslts from the search until you close your keyboard
+  - whats with elevation? is there no api to get it for free? whats it used for? the elevation sunrise and sunset? but nothing else? unless the in-profile toggle is on?
+  - i dont understand the whole profile thing. explain it to me. we might just drop it (keeping the settings: just outside of "profiles")
+- in the profile settings after holiday candle lighting what is the ateret torah text field?
+- can we move the notification bar with the date to the status bar? so there is no constant notification? and call we also make it look nicer? and add the month in small under the day?
+- widgets:
+  - there should be a 1x1 date widget like this https://play-lh.googleusercontent.com/tbZtIluFi973Bm0m6yTYubv12DSN-pElWqinliv2qMaPsZdZ7wutQS0d2AR9oflY_WFFW5I22TY_kIgVyzyN=w526-h296. maybe also for gregorian. maybe an option which screen to open into
+  - the 2*1 should be more consistent. they should both show day of week. but the hebrew should show the greg year after the day of week and dd/mm. the greg widget should instead of showing greg dd/mm at the bottom should show hebrew date in small
+  - why do widgets need to select a location? for sunset? it should always be at app location. i think. and if thats not configured send them there to configure it 1st
+  - so then the 2*1 should be split into 2 widgets i think. instead of settings for the widget (since the location wont be there) just have one widget for greg and one for hebrew
+  - in the upcoming zman widget why is the next zman stuck there even when scrolling down?
+  - when count down is picked count down to all of them
+  - i like the parsha and daf widget. but we need to add more. its big with not a lot. more learning schedules? anything else?
+    - these are all options among others: ![WhatsApp Image 2026-11-03 at 10.20.55 PM.jpeg](../../../Downloads/WhatsApp%20Image%202026-11-03%20at%2010.20.55%20PM.jpeg) and ![WhatsApp Image 2026-11-03 at 10.21.38 PM.jpeg](../../../Downloads/WhatsApp%20Image%202026-11-03%20at%2010.21.38%20PM.jpeg)
+  - when on the events app: when set to click into calendar it flashes weirdly and disorientingly a few times before loading in. and when set to open the event it opens the event in the wrong app!
+- the zmanim need more explanation. maybe from the doc blocks of the method?
