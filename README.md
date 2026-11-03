@@ -41,8 +41,8 @@ English controls, Hebrew calendar/zman labels, a Hebrew month, Sunday first,
 and right-to-left calendar days. Existing saved preferences are preserved.
 
 The bottom bar opens Gregorian month, Hebrew month, week, day, and zmanim views.
-The three-dot menu contains Today, Go to date, search, and Settings. Swipe the
-calendar to change periods; accessible period actions are also available.
+The three-dot menu contains Today, Go to date, search, and Settings. In month view, swipe left/right to change months and up/down to change years.
+The swap setting exchanges these axes; accessible period actions are also available.
 Double-tap an empty hour in week/day view to create an event at that date/time.
 
 Choose zmanim from the zmanim screen's menu; each selection saves immediately.
@@ -70,6 +70,16 @@ colors start with the PHP calendar palette, support category overrides, and can
 be reset. Permission status is separate from app feature switches; Android app
 permissions can be managed from Settings. Selective JSON backups include the
 new settings and profile options. Widgets remain independently configurable.
+An unselected widget location follows the active app location; an explicitly selected place stays independent. The Date
+widget starts at 2 × 1 launcher cells and shows a prominent date badge. The Daily
+overview starts at 3 × 2 cells and shows both dates, parsha, and Daf Yomi. Events
+and Zmanim widgets show their own scrolling lists; the next zman/countdown stays
+visible. Widget layouts and typography adapt to actual allocated space, with
+separate light/dark color palettes. Already placed widgets retain the launcher's
+allocated size and can be resized to use the smaller minimums.
+
+The Hebrew-date notification uses Hebrew letters in both its status icon and
+expanded date, independently of the calendar-label preference.
 Precise reminders require Android access; approximate delivery requires opt-in.
 
 See [the problem resolution checklist](docs/problem-resolution.md) for the
@@ -83,6 +93,8 @@ Kotlin and offline data are committed, so ordinary Gradle builds do not run them
 - `generate_catalog.py` reads the pinned KosherJava source JAR and generates
   typed Kotlin calculation adapters plus `docs/method-catalog.csv`. Pass
   `--source /path/to/zmanim-3.0.0-sources.jar` if it is not in the Gradle cache.
+- `GenerateHebrewDayIcons.java` regenerates the 30 Hebrew-letter status icons
+  from DejaVu Sans Bold outlines; its font notice is bundled in the app assets.
 - `prepare_places.py` downloads public city/timezone datasets and builds offline
   assets. Dataset provenance and licenses are recorded in
   `app/src/main/assets/place-data.json` and `NOTICE.txt`. Timezone points are

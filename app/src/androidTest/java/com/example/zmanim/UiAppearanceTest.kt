@@ -76,6 +76,7 @@ class UiAppearanceTest {
                 destination("Hebrew"); screenshot("$size-month.png")
                 destination("Gregorian"); screenshot("$size-gregorian.png")
                 destination("Week")
+                compose.waitUntil(10000) { compose.onAllNodesWithTag("hourSchedule").fetchSemanticsNodes().isNotEmpty() }
                 compose.onNodeWithTag("hourSchedule").assertIsDisplayed(); screenshot("$size-week.png")
                 destination("Day"); screenshot("$size-day.png")
                 destination("Zmanim"); screenshot("$size-zmanim.png")

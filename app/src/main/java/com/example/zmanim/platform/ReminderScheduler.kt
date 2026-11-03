@@ -113,7 +113,7 @@ class ReminderScheduler(private val context: Context, private val clock: Clock =
         if (!data.settings.dateNotification || !notificationAccess("hebrew-date")) { manager.cancel(42); return }
         val place = data.place()
         val (date, reason) = CalendarEngine().currentHebrewDate(clock.instant(), place, data.settings.dateNotificationSunset)
-        val text = date?.let { CalendarEngine().dateLabel(it, data.settings.labels == LabelLanguage.HEBREW) } ?: reason!!
+        val text = date?.let { CalendarEngine().dateLabel(it, true) } ?: reason!!
         val day = date?.let { com.kosherjava.zmanim.hebrewcalendar.JewishDate(it).jewishDayOfMonth }
         val icons = intArrayOf(R.drawable.hebrew_day_1, R.drawable.hebrew_day_2, R.drawable.hebrew_day_3, R.drawable.hebrew_day_4, R.drawable.hebrew_day_5, R.drawable.hebrew_day_6, R.drawable.hebrew_day_7, R.drawable.hebrew_day_8, R.drawable.hebrew_day_9, R.drawable.hebrew_day_10, R.drawable.hebrew_day_11, R.drawable.hebrew_day_12, R.drawable.hebrew_day_13, R.drawable.hebrew_day_14, R.drawable.hebrew_day_15, R.drawable.hebrew_day_16, R.drawable.hebrew_day_17, R.drawable.hebrew_day_18, R.drawable.hebrew_day_19, R.drawable.hebrew_day_20, R.drawable.hebrew_day_21, R.drawable.hebrew_day_22, R.drawable.hebrew_day_23, R.drawable.hebrew_day_24, R.drawable.hebrew_day_25, R.drawable.hebrew_day_26, R.drawable.hebrew_day_27, R.drawable.hebrew_day_28, R.drawable.hebrew_day_29, R.drawable.hebrew_day_30)
         val iconId = day?.let { icons[it - 1] } ?: android.R.drawable.ic_menu_today

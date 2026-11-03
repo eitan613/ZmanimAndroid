@@ -178,7 +178,9 @@ class ZmanimScreenTest {
         val current = app.repository.data
         org.junit.Assert.assertEquals(LocationMode.SAVED, current.settings.location.mode)
         org.junit.Assert.assertEquals("Current location", current.place()!!.name)
-        org.junit.Assert.assertEquals("Asia/Jerusalem", current.place()!!.zoneId)
+        org.junit.Assert.assertEquals(current.devicePlace!!.zoneId, current.place()!!.zoneId)
+        org.junit.Assert.assertEquals(current.devicePlace!!.latitude, current.place()!!.latitude, 0.0)
+        org.junit.Assert.assertEquals(current.devicePlace!!.longitude, current.place()!!.longitude, 0.0)
         org.junit.Assert.assertNotEquals(current.devicePlace!!.id, current.place()!!.id)
     }
 

@@ -37,7 +37,7 @@
 - show modern holidays
 - show calendar holidays/events
 - show parsha/special parsha
-- swipe months or years (select which period a horizontal swipe changes)
+- swipe left/right for months and up/down for years; the setting swaps these axes
 - fade out a little days not in that month (but are in the week)
 - toggle coloring special days like our pdf
 - today, go to, new event, search event controls in menu dropdown
@@ -111,7 +111,7 @@ The implementation uses the decisions agreed during planning:
 - Current Hebrew date rollover uses sea-level sunset independently of selected methods. Missing sunset/location is unavailable, with no midnight substitution.
 - Profiles include calculation-affecting settings; location and presentation settings are separate. Switching profiles switches profile reminders, while events retain their profile references.
 - Bundle offline city and timezone data; permit manual coordinates, timezone, and elevation. Optional background location supports travel. Device fixes are flagged after 24 hours or a clock discontinuity, without silently switching location.
-- Month cells show both dates, short enabled calendar labels, and event indicators; selected-day details appear below. Grid direction is independent of language. Horizontal swipes change months or years according to the selected setting; accessible period actions and the menu date picker provide alternatives.
+- Month cells show both dates, short enabled calendar labels, and event indicators; selected-day details appear below. Grid direction is independent of language. Left/right swipes change months and up/down swipes change years, with a setting to exchange the axes; accessible period actions and the menu date picker provide alternatives.
 - Display-only rounding offers down/nearest/up; `+` means later than the exact instant and `−` earlier. Reminders use exact instants plus their explicit offsets.
 - Approximate alarms require user acceptance and show a may-be-late status. Denied notifications are inactive.
 - Device Calendar Provider handles connected account calendars. Ordinary one-time events can be edited directly; app-owned recurrence exports individual occurrences for a rolling year. External changes pause managed updates and expose restore, detach/suppress, or stop-exporting choices. Guest invitations finish in the device calendar editor.
@@ -135,7 +135,7 @@ The implementation uses the decisions agreed during planning:
 | C6 | App user    | Should the Hebrew-date widget advance at sunset or midnight, and which location should it use?                                                                                                     | Existing requested setting; civil appointments retain their dates.                                                  |
 | C7 | App user    | Israel or diaspora holiday/parsha schedule?                                                                                                                                                        | One-time location-derived initial default, diaspora fallback, manual override; travel never changes the established choice.                                                             |
 | C8 | App user    | Opening view; primary calendar; Sunday/Monday week start; month direction; scroll directions; double-tap action; special-day colors; holiday/parsha/Omer visibility; Hebrew/transliterated labels? | Existing requested preferences.                                                                                     |
-| C9 | Owner (you) | What exactly do month direction and year/month scroll-direction controls change? Are label language and layout direction independent?                                                              | Resolved: independent grid/language; horizontal swipes change months or years; accessible period actions and menu date navigation. |
+| C9 | Owner (you) | What exactly do month direction and year/month scroll-direction controls change? Are label language and layout direction independent?                                                              | Resolved: independent grid/language; left/right months, up/down years, with a setting to swap axes; accessible period actions and menu date navigation. |
 
 #### Zmanim and locations
 

@@ -41,4 +41,45 @@ class AlarmDeliveryTest {
             }
         }
     }
+    @Test fun dateNotificationAlwaysUsesHebrewLettersAndLetterIcons() = runBlocking<Unit> {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val app = context.applicationContext as ZmanimApplication
+        val original = app.awaitData()
+        assumeTrue("Allow Hebrew date notifications for this test.", app.reminders.notificationAccess("hebrew-date"))
+        val place = Place(id = "notification-place", name = "Jerusalem", latitude = 31.778, longitude = 35.235, zoneId = "Asia/Jerusalem")
+        val manager = context.getSystemService(NotificationManager::class.java)
+        try {
+            for (day in listOf(1, 15, 16, 22, 30)) {
+                val civil = com.kosherjava.zmanim.hebrewcalendar.JewishDate(5787, 1, day).localDate
+                val now = civil.atTime(12, 0).atZone(place.zone()).toInstant()
+                val scheduler = com.example.zmanim.platform.ReminderScheduler(context, Clock.fixed(now, place.zone()))
+                val data = AppData(settings = AppSettings(dateNotification = true, dateNotificationSunset = false,
+                    labels = LabelLanguage.TRANSLITERATED, location = LocationBinding(savedId = place.id)), places = listOf(place))
+                scheduler.updateDateNotification(data)
+                val expected = CalendarEngine().dateLabel(civil, true)
+                val notification = withTimeout(5000) {
+                    var current = manager.activeNotifications.firstOrNull { it.id == 42 && it.notification.extras.getString(Notification.EXTRA_TITLE) == expected }
+                    while (current == null) { delay(50); current = manager.activeNotifications.firstOrNull { it.id == 42 && it.notification.extras.getString(Notification.EXTRA_TITLE) == expected } }
+                    current.notification
+                }
+                assertEquals(expected, notification.extras.getString(Notification.EXTRA_TITLE))
+                assertFalse(expected.any { it.isDigit() })
+                val icon = context.resources.getIdentifier("hebrew_day_$day", "drawable", context.packageName)
+                assertEquals(icon, notification.smallIcon.resId)
+            }
+            val bitmap = android.graphics.Bitmap.createBitmap(480, 256, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            canvas.drawColor(android.graphics.Color.rgb(20, 43, 61))
+            val paint = android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = 12f; isAntiAlias = true }
+            for (day in 1..30) {
+                val x = ((day - 1) % 8) * 60; val y = ((day - 1) / 8) * 64
+                val icon = context.resources.getDrawable(context.resources.getIdentifier("hebrew_day_$day", "drawable", context.packageName), context.theme)
+                icon.setBounds(x + 14, y + 4, x + 46, y + 36); icon.draw(canvas)
+                canvas.drawText(day.toString(), x + 23f, y + 54f, paint)
+            }
+            java.io.File(context.cacheDir, "qa").mkdirs()
+            java.io.File(context.cacheDir, "qa/hebrew-status-icons.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        } finally { manager.cancel(42); app.reminders.updateDateNotification(original) }
+    }
+
 }

@@ -51,8 +51,8 @@ import kotlinx.coroutines.withContext
                         { value -> when(value) { true -> tr("Israel", "ישראל"); false -> tr("Diaspora", "חו״ל") } }, { value -> model.settings { it.copy(inIsrael = value, scheduleInitialized = true) } })
                     Choice(tr("Week starts on", "היום הראשון בשבוע"), settings.mondayFirst, listOf(false, true), { if (it) tr("Monday", "שני") else tr("Sunday", "ראשון") }, { value -> model.settings { it.copy(mondayFirst = value) } })
                     Toggle(tr("Days progress right to left", "הימים מתקדמים מימין לשמאל"), settings.reverseGrid, { value -> model.settings { it.copy(reverseGrid = value) } }, tr("Independent of interface and label language.", "ללא תלות בשפת הממשק או התוויות."))
-                    Toggle(tr("Swipe changes years", "החלקה משנה שנים"), settings.swapScrollAxes, { value -> model.settings { it.copy(swapScrollAxes = value) } },
-                        tr("Off: swipe changes one month. On: swipe changes one year.", "כבוי: החלקה משנה חודש. פעיל: החלקה משנה שנה."))
+                    Toggle(tr("Swap month/year swipe directions", "החלפת כיווני החלקה לחודשים ושנים"), settings.swapScrollAxes, { value -> model.settings { it.copy(swapScrollAxes = value) } },
+                        tr("Off: left/right changes months; up/down changes years. On: left/right changes years; up/down changes months.", "כבוי: ימינה ושמאלה לחודשים, למעלה ולמטה לשנים. פעיל: ימינה ושמאלה לשנים, למעלה ולמטה לחודשים."))
                     Choice(tr("Double-tap a day", "לחיצה כפולה על יום"), settings.doubleTap, DoubleTapAction.entries, { enumName(it) }, { value -> model.settings { it.copy(doubleTap = value) } })
                     Toggle(tr("Show holidays", "הצגת חגים"), settings.showHolidays, { value -> model.settings { it.copy(showHolidays = value) } })
                     Toggle(tr("Show modern holidays", "הצגת מועדים מודרניים"), settings.modernHolidays, { value -> model.settings { it.copy(modernHolidays = value) } })

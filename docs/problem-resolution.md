@@ -46,8 +46,8 @@ persisted choices and personal records are retained.
   update does not invent alternate practical rules for exceptional years.
 - Existing calculations still report unavailable solar events and missing inputs;
   no fallback method or elevation value is silently substituted.
-- Calendar directions are independent of UI direction. Month swipes change a
-  month, or a year when the “Swipe changes years” setting is enabled.
+- Calendar directions are independent of UI direction. Left/right month-grid swipes change months; up/down changes years. The
+  “Swap month/year swipe directions” setting exchanges the two axes.
 
 ## Validation commands
 
@@ -75,3 +75,27 @@ folders. Build outputs and screenshots are not repository source artifacts.
   views, picker/location/settings screens at compact and standard sizes, and the
   Hebrew backup flow at 1.7× font scale. The test restores font scale and screen
   size after capturing screenshots.
+
+## Widget, notification, and gesture follow-up
+
+- Prior redesign committed as `d419a9b` before starting this follow-up.
+- Hebrew-date notification icons now contain actual Hebrew letters for days
+  1–30, including טו/טז. The expanded date is Hebrew regardless of label language.
+- Month view accepts both swipe axes; the setting swaps month/year roles while
+  respecting the chosen right-to-left or left-to-right day direction.
+- Date badge defaults to 2 × 1 launcher cells; the combined daily overview defaults
+  to 3 × 2. Event and zmanim lists remain independently available. Existing launcher
+  allocations are preserved; resizing a placed widget applies the smaller bounds.
+- All widget families have distinct colored backgrounds and content hierarchy,
+  theme-aware cards, and typography that uses actual allocated dimensions.
+- The overview displays both dates, labeled upcoming parsha, and Daf Yomi. A
+  widget with no explicit place now follows the app location. Explicit saved or
+  follow-device locations remain independent. Event widgets omit location metadata.
+
+Follow-up validation: all 37 JVM tests and all 27 Android instrumentation tests
+passed, including both swipe axes in both calendar directions, Hebrew notification
+text/icons, and 20 widget snapshots across compact/wide/tall sizes in light/dark
+themes. Debug and optimized release builds succeeded; lint completed without
+errors. Widget previews and the 30-icon sheet are saved in
+`app/build/reports/widget-review`. The emulator app data was backed up before the
+UI tests, then restored and verified byte-for-byte afterward.

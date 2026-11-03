@@ -4,6 +4,7 @@ package com.example.zmanim.ui
 import android.text.format.DateFormat
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,7 +36,7 @@ import kotlin.math.*
     var search by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) }
     val locale = LocalProductLocale.current
-    val listState = rememberLazyListState()
+    val listState = key(settings.calendarView, settings.primaryCalendar) { rememberLazyListState() }
     BoxWithConstraints(Modifier.fillMaxSize().widthIn(max = 840.dp)) {
         val cellHeight = ((maxHeight - 110.dp) / s.month.days.chunked(7).size).coerceIn(84.dp, 140.dp)
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
@@ -91,19 +92,24 @@ import kotlin.math.*
     val engine = remember { CalendarEngine() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         var x by remember { mutableFloatStateOf(0f) }
+        var y by remember { mutableFloatStateOf(0f) }
         val currentShift by rememberUpdatedState<(Int, Boolean) -> Unit> { amount, years -> model.shift(amount, years) }
         val swap = settings.swapScrollAxes
         CompositionLocalProvider(LocalLayoutDirection provides if (settings.reverseGrid) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-            Column(Modifier.semantics {
+            Column(Modifier.testTag("monthGrid").semantics {
                 customActions = listOf(
                     CustomAccessibilityAction("Previous period") { model.shift(-1); true },
                     CustomAccessibilityAction("Next period") { model.shift(1); true },
                     CustomAccessibilityAction("Previous year") { model.shift(-1, true); true },
                     CustomAccessibilityAction("Next year") { model.shift(1, true); true })
             }.pointerInput(swap, settings.reverseGrid) {
-                detectHorizontalDragGestures(onDragStart = { x = 0f }, onDragEnd = {
-                    if (abs(x) > 80f) currentShift(if ((x < 0) != settings.reverseGrid) 1 else -1, swap)
-                }) { change, drag -> change.consume(); x += drag }
+                detectDragGestures(onDragStart = { x = 0f; y = 0f }, onDragEnd = {
+                    if (max(abs(x), abs(y)) > 80f) {
+                        val horizontal = abs(x) > abs(y)
+                        val forward = if (horizontal) (x < 0) != settings.reverseGrid else y < 0
+                        currentShift(if (forward) 1 else -1, if (horizontal) swap else !swap)
+                    }
+                }) { change, drag -> change.consume(); x += drag.x; y += drag.y }
             }) {
                 val first = if (settings.mondayFirst) 1 else 7
                 Row(Modifier.fillMaxWidth()) {
