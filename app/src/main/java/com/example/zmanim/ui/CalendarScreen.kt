@@ -46,7 +46,7 @@ import kotlin.math.*
                 tr("Search events", "חיפוש אירועים") to { searching = !searching },
                 tr("App location", "מיקום האפליקציה") to onLocations, tr("Help", "עזרה") to onHelp,
                 tr("Settings", "הגדרות") to onSettings))
-            LazyColumn(state = listState, modifier = Modifier.testTag("calendarList").fillMaxSize(), verticalArrangement = Arrangement.spacedBy(if (settings.calendarView == CalendarView.MONTH || searching) 12.dp else 0.dp)) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(if (settings.calendarView == CalendarView.MONTH || searching) 12.dp else 0.dp)) {
                 s.error?.let { error -> item { Notice(error, true) } }
                 if (searching) item {
                     Field(tr("Search event titles and descriptions", "חיפוש כותרות ותיאורים"), search, { search = it })
@@ -90,7 +90,7 @@ import kotlin.math.*
         val currentShift by rememberUpdatedState<(Int, Boolean) -> Unit> { amount, years -> model.shift(amount, years) }
         val swap = settings.swapScrollAxes
         CompositionLocalProvider(LocalLayoutDirection provides if (settings.calendarRtl()) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-            Column(Modifier.testTag("monthGrid").semantics {
+            Column(Modifier.semantics {
                 customActions = listOf(
                     CustomAccessibilityAction("Previous period") { model.shift(-1); true },
                     CustomAccessibilityAction("Next period") { model.shift(1); true },
@@ -152,7 +152,7 @@ import kotlin.math.*
                                         if (settings.showEventBasics) {
                                             val event = dayEvents.first()
                                             val clock = event.start?.let { TimeFormatting.format(it, ZoneId.of(event.zoneId), settings.copy(showSeconds = false), DateFormat.is24HourFormat(LocalContext.current), locale) }
-                                            Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title, modifier = Modifier.fillMaxWidth().testTag("cellEvent:${day.date}"), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
+                                            Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
                                             if (count > 1) Text(tr("+${count - 1} more", "+${count - 1} נוספים"), maxLines = 1, style = MaterialTheme.typography.labelSmall, color = onCell)
                                         } else Text("• $count", style = MaterialTheme.typography.labelSmall, color = onCell)
                                     }
@@ -182,11 +182,11 @@ import kotlin.math.*
         if (primaryWidth + secondaryWidth > constraints.maxWidth) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                 Text(primary, style = fittedPrimary, color = color, maxLines = 1, softWrap = false)
-                Text(secondary, modifier = Modifier.align(Alignment.Start).testTag("secondaryDate:$date"), style = secondaryStyle, color = color.copy(alpha = color.alpha * 0.75f), maxLines = 1, softWrap = false)
+                Text(secondary, modifier = Modifier.align(Alignment.Start), style = secondaryStyle, color = color.copy(alpha = color.alpha * 0.75f), maxLines = 1, softWrap = false)
             }
         } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(primary, style = fittedPrimary, color = color, maxLines = 1, softWrap = false)
-            Text(secondary, modifier = Modifier.testTag("secondaryDate:$date"), style = secondaryStyle, color = color.copy(alpha = color.alpha * 0.75f), maxLines = 1, softWrap = false)
+            Text(secondary, style = secondaryStyle, color = color.copy(alpha = color.alpha * 0.75f), maxLines = 1, softWrap = false)
         }
     }
 }
@@ -234,11 +234,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
     val maxHours = days.maxOf { Duration.between(it.atStartOfDay(zone), it.plusDays(1).atStartOfDay(zone)).toHours().toInt() }
     stickyHeader(key = "scheduleHeader") {
         CompositionLocalProvider(LocalLayoutDirection provides if (s.data.settings.calendarRtl()) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-            Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).testTag("hourSchedule")) {
+            Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
                 Spacer(Modifier.width(38.dp))
                 days.forEach { date ->
                     val jd = com.kosherjava.zmanim.hebrewcalendar.JewishDate(date)
-                    Column(Modifier.weight(1f).testTag("weekday:$date").padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.weight(1f).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(date.format(DateTimeFormatter.ofPattern("EE", if (s.data.settings.labels == LabelLanguage.HEBREW) Locale.forLanguageTag("he") else locale)), maxLines = 1, style = MaterialTheme.typography.labelSmall)
                         Text("${date.dayOfMonth} · ${CalendarEngine().formatter(true).formatHebrewNumber(jd.jewishDayOfMonth)}", maxLines = 1, style = MaterialTheme.typography.labelSmall)
                     }
@@ -269,7 +269,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
                     val end = date.plusDays(1).atStartOfDay(zone).toInstant()
                     val slot = start.plusSeconds(hour * 3600L)
                     val enabled = slot < end
-                    BoxWithConstraints(Modifier.weight(1f).testTag("slot:$date:$hour").fillMaxHeight().border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
                         .semantics { contentDescription = "$date ${slot.atZone(zone).toLocalTime()}" }
                         .combinedClickable(enabled = enabled, onClick = { model.select(date) }, onDoubleClick = { onNewEvent(EventStart.at(slot, zone)) },
                             onLongClickLabel = "Create event", onLongClick = { onNewEvent(EventStart.at(slot, zone)) })) {

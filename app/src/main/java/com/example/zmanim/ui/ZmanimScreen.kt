@@ -84,11 +84,11 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
         if (profile == null || profile.selected.isEmpty()) Notice(tr("Choose which zmanim you want to show. No calculation methods are selected for you.", "יש לבחור אילו זמנים להציג. לא נבחרו שיטות חישוב מראש."), action = {
             TextButton(onClick = onMethods) { Text(tr("Choose zmanim", "בחירת זמנים")) }
         })
-        else LazyColumn(state = state, modifier = Modifier.weight(1f).testTag("zmanimTimeline"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        else LazyColumn(state = state, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items(rows, key = { it.key }, contentType = { if (it.zman == null) "heading" else "zman" }) { row ->
                 val z = row.zman
                 if (z == null) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth().testTag("dayHeader:${row.date}").padding(top = 12.dp, bottom = 4.dp)) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(CalendarEngine().dateLabel(row.date, settings.labels == LabelLanguage.HEBREW), style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.fillMaxWidth(), textAlign = if (settings.labels == LabelLanguage.HEBREW) TextAlign.Right else TextAlign.Start)
@@ -100,7 +100,7 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
                     val isNext = row.key == next?.key
                     if (isNext) Text(tr("Next zman", "הזמן הבא"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                     Surface(onClick = { detail = z }, color = if (isNext) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().then(if (isNext) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium) else Modifier).testTag(if (isNext) "nextZman" else "zman:${row.key}")) {
+                        shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().then(if (isNext) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium) else Modifier)) {
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(Modifier.weight(1f)) {
                                 Text(methodLabel(z.id, profile, settings.labels == LabelLanguage.HEBREW), Modifier.fillMaxWidth(),

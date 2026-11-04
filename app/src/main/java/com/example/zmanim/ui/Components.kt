@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -81,7 +80,7 @@ val LocalProductLocale = staticCompositionLocalOf { java.util.Locale.ENGLISH }
 }
 @Composable fun ConfirmDialog(title: String, message: String, action: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { Text(message) },
-        confirmButton = { TextButton(onClick = onConfirm, modifier = Modifier.testTag("confirmationAction")) { Text(action, color = MaterialTheme.colorScheme.error) } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(action, color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel", "ביטול")) } })
 }
 @Composable fun EditorDialog(title: String, dirty: Boolean, onDismiss: () -> Unit, onSave: suspend () -> Unit,
@@ -147,11 +146,11 @@ fun methodLabel(id: String, profile: Profile?, hebrew: Boolean): String = bidiZm
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         if (actions.isNotEmpty()) Box {
-            IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("overflowMenu")) {
+            IconButton(onClick = { expanded = true }) {
                 Icon(androidx.compose.material.icons.Icons.Default.MoreVert, tr("Menu", "תפריט"))
             }
             DropdownMenu(expanded, { expanded = false }) {
-                actions.forEach { (label, action) -> DropdownMenuItem(text = { Text(label) }, modifier = Modifier.testTag("menu:$label"), onClick = { expanded = false; action() }) }
+                actions.forEach { (label, action) -> DropdownMenuItem(text = { Text(label) }, onClick = { expanded = false; action() }) }
             }
         }
     }

@@ -7,7 +7,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.testTag
 import com.example.zmanim.domain.*
 import java.time.*
 import java.time.format.TextStyle
@@ -26,7 +25,7 @@ import com.kosherjava.zmanim.hebrewcalendar.JewishDate
     val (first, end) = engine.monthBounds(cursor, system)
     EditorDialog(tr("Choose date", "בחירת תאריך"), false, onDismiss, { onDate(date) }, tr("Choose date", "בחירת תאריך")) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CalendarSystem.entries.forEach { mode -> FilterChip(modifier = Modifier.testTag("pickerCalendar:$mode"), selected = mode == system,
+            CalendarSystem.entries.forEach { mode -> FilterChip(selected = mode == system,
                 onClick = { system = mode; month = selected }, label = { Text(enumName(mode)) }) }
         }
         Text(engine.monthLabel(cursor, system, LocalLabelHebrew.current, LocalProductLocale.current), style = MaterialTheme.typography.titleLarge)
@@ -64,8 +63,8 @@ import com.kosherjava.zmanim.hebrewcalendar.JewishDate
                             if (index in 0 until length) {
                                 val day = first.plusDays(index.toLong())
                                 val label = if (system == CalendarSystem.HEBREW) engine.formatter(true).formatHebrewNumber(JewishDate(day).jewishDayOfMonth) else day.dayOfMonth.toString()
-                                if (day == date) FilledTonalButton(onClick = { selected = day.toString() }, contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth().testTag("pickerDay:$day")) { Text(label) }
-                                else TextButton(onClick = { selected = day.toString() }, contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth().testTag("pickerDay:$day")) { Text(label) }
+                                if (day == date) FilledTonalButton(onClick = { selected = day.toString() }, contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth()) { Text(label) }
+                                else TextButton(onClick = { selected = day.toString() }, contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth()) { Text(label) }
                             }
                         }
                     } }

@@ -12,7 +12,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.zmanim.domain.*
 import java.time.*
@@ -37,7 +36,7 @@ import kotlinx.coroutines.withContext
             }
         }
         key(tab) {
-            LazyColumn(Modifier.testTag("settingsList").fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (tab == 0 || tab == 1) item {
                     OutlinedButton(onClick = onLocations, modifier = Modifier.fillMaxWidth()) { Text(tr("App location", "מיקום האפליקציה") + " · " + (s.data.place()?.name ?: tr("Choose a location", "בחירת מקום"))) }
                     if (!settings.scheduleInitialized) Notice(tr("Confirm Israel or Diaspora under Calendar. GPS timezones do not establish a holiday schedule.", "יש לאשר ישראל או חו״ל בלשונית לוח שנה. אזור זמן מ־GPS אינו קובע את סדר החגים."))

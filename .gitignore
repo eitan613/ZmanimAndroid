@@ -1,24 +1,34 @@
+# Local configuration, IDE state, and caches.
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-
-# Local IDE state, Kotlin caches, and generated outputs.
+.gradle/
 .idea/
 .kotlin/
+local.properties
+.DS_Store
+Thumbs.db
+
+# Generated Android and native build outputs.
 **/build/
+/captures/
+.externalNativeBuild/
+.cxx/
 *.apk
 *.aab
+*.apks
+*.dex
+
+# Signing material.
 *.jks
 *.keystore
+
+# Local diagnostics and temporary files.
+*.log
+*.hprof
+*.trace
+hs_err_pid*
+replay_pid*
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
