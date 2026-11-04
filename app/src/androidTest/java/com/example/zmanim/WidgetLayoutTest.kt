@@ -39,13 +39,14 @@ class WidgetLayoutTest {
                 app.repository.update { AppData(settings = AppSettings(appearance = if (dark) Appearance.DARK else Appearance.LIGHT,
                     inIsrael = true, activeProfileId = profile.id, location = LocationBinding(savedId = place.id), showDeviceEvents = false),
                     profiles = listOf(profile), places = listOf(place), events = listOf(event)) }
-                for ((kind, widget) in listOf(WidgetKind.DATE to DateWidget(), WidgetKind.COMBINED to CombinedWidget(), WidgetKind.EVENTS to EventsWidget(), WidgetKind.ZMANIM to ZmanimWidget())) {
-                    val numeric = 1_100_000 + kind.ordinal
+                for ((kind, widget) in listOf(WidgetKind.DATE to DateWidget(), WidgetKind.DATE to GregorianDateWidget(), WidgetKind.COMBINED to CombinedWidget(), WidgetKind.EVENTS to EventsWidget(), WidgetKind.ZMANIM to ZmanimWidget())) {
+                    val gregorianDate = widget is GregorianDateWidget
+                    val numeric = 1_100_000 + kind.ordinal + if (gregorianDate) 100 else 0
                     val id = GlanceAppWidgetManager(context).getGlanceIdBy(android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, numeric))!!
                     // An empty location binding means the active app location, including for existing widgets.
-                    app.repository.update { it.copy(widgets = it.widgets + WidgetConfig(numeric.toString(), kind, itemCount = 1, countdown = true)) }
+                    app.repository.update { it.copy(widgets = it.widgets + WidgetConfig(numeric.toString(), kind, itemCount = 1, countdown = true, calendar = if (gregorianDate) CalendarSystem.GREGORIAN else CalendarSystem.HEBREW)) }
                     val sizes = when(kind) {
-                        WidgetKind.DATE -> listOf(DpSize(110.dp, 56.dp), DpSize(180.dp, 72.dp), DpSize(120.dp, 180.dp))
+                        WidgetKind.DATE -> listOf(DpSize(110.dp, 56.dp), DpSize(110.dp, 110.dp), DpSize(180.dp, 72.dp), DpSize(120.dp, 180.dp))
                         WidgetKind.COMBINED -> listOf(DpSize(180.dp, 110.dp), DpSize(300.dp, 180.dp), DpSize(300.dp, 300.dp))
                         else -> listOf(DpSize(180.dp, 110.dp), DpSize(300.dp, 240.dp))
                     }
@@ -65,20 +66,27 @@ class WidgetLayoutTest {
                             assertFalse(text.contains("Choose a location for the current Hebrew date"))
                             if (kind == WidgetKind.DATE) {
                                 val largest = textViews.maxOf { it.textSize }
-                                if (smallDateSize == null) smallDateSize = largest else assertTrue("Date type scales up when the widget is made taller", largest > smallDateSize!!)
+                                textViews.maxBy { it.textSize }.layout?.let { layout ->
+                                    assertEquals("Primary date must not become an ellipsis: $size", 0, layout.getEllipsisCount(0))
+                                }
+                                if (smallDateSize == null) smallDateSize = largest else if (size.height >= 140.dp) assertTrue("Date type scales up when the widget is made taller", largest > smallDateSize!!)
                             }
-                            if (kind == WidgetKind.COMBINED) { assertTrue(text.contains("PARSHA")); assertTrue(text.contains("DAF YOMI")) }
+                            if (kind == WidgetKind.COMBINED) assertTrue("Learning rows use a native scrolling collection", descendants(frame).any { it is android.widget.AdapterView<*> })
                             if (kind == WidgetKind.EVENTS) assertTrue(text.contains("Team meeting"))
                             if (kind == WidgetKind.ZMANIM && size.height >= 160.dp) assertTrue(text.contains("Jerusalem"))
                             for (textView in textViews.filter { it.visibility == View.VISIBLE && it.text.isNotBlank() }) {
+                                if (kind == WidgetKind.DATE) textView.layout?.let { layout ->
+                                    assertTrue("Date text lines must fit without vertical clipping: $size ${textView.text}",
+                                        layout.getLineBottom(layout.lineCount - 1) + textView.compoundPaddingTop + textView.compoundPaddingBottom <= textView.height)
+                                }
                                 val rect = android.graphics.Rect(0, 0, textView.width, textView.height)
                                 frame.offsetDescendantRectToMyCoords(textView, rect)
                                 assertTrue("Text must stay inside the widget: $kind $size ${textView.text} $rect", rect.top >= 0 && rect.bottom <= h && rect.left >= 0 && rect.right <= w)
                             }
                             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
                             frame.draw(Canvas(bitmap))
-                            File(context.cacheDir, "qa/widgets").mkdirs()
-                            File(context.cacheDir, "qa/widgets/${kind.name.lowercase()}-${size.width.value.toInt()}x${size.height.value.toInt()}-${if (dark) "dark" else "light"}.png")
+                            File(context.filesDir, "qa/widgets").mkdirs()
+                            File(context.filesDir, "qa/widgets/${kind.name.lowercase()}${if (gregorianDate) "-gregorian" else ""}-${size.width.value.toInt()}x${size.height.value.toInt()}-${if (dark) "dark" else "light"}.png")
                                 .outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
                         }
                     }

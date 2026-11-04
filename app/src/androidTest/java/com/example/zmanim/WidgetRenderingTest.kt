@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 @OptIn(ExperimentalGlanceApi::class)
 @RunWith(AndroidJUnit4::class)
 class WidgetRenderingTest {
-    @Test fun allWidgetFamiliesRenderAndCountdownUsesAHostChronometer() = runBlocking {
+    @Test fun allWidgetFamiliesRenderAndAllZmanRowsUseTheScrollingCollection() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val app = context.applicationContext as ZmanimApplication
         val original = app.awaitData()
@@ -35,7 +35,7 @@ class WidgetRenderingTest {
             for ((kind, widget) in listOf(WidgetKind.EVENTS to EventsWidget(), WidgetKind.ZMANIM to ZmanimWidget(), WidgetKind.DATE to DateWidget(), WidgetKind.COMBINED to CombinedWidget())) {
                 val numeric = 1_000_000 + kind.ordinal
                 val id = GlanceAppWidgetManager(context).getGlanceIdBy(android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, numeric))!!
-                app.repository.update { it.copy(widgets = it.widgets + WidgetConfig(numeric.toString(), kind, location = LocationBinding(savedId = place.id), profileId = profile.id, countdown = true)) }
+                app.repository.update { it.copy(widgets = it.widgets + WidgetConfig(numeric.toString(), kind, profileId = profile.id, countdown = true)) }
                 val remote = widget.compose(context, id = id, size = DpSize(300.dp, 240.dp))
                 val rendered = withContext(Dispatchers.Main) { remote.apply(context, android.widget.FrameLayout(context)) }
                 fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
@@ -43,7 +43,10 @@ class WidgetRenderingTest {
                 val text = views.filterIsInstance<TextView>().joinToString(" ") { it.text.toString() }
                 assertTrue("Widget must render text: $kind", text.isNotBlank())
                 if (kind == WidgetKind.EVENTS) assertTrue(text.contains("Widget event"))
-                if (kind == WidgetKind.ZMANIM) assertTrue(views.any { it is Chronometer })
+                if (kind == WidgetKind.ZMANIM) {
+                    assertTrue(views.any { it is android.widget.AdapterView<*> })
+                    assertFalse("No countdown/next row is pinned outside the collection", views.any { it is Chronometer })
+                }
                 if (kind == WidgetKind.EVENTS) {
                     app.repository.update { data -> data.copy(events = (0 until 10).map { index -> event.copy(id = "widget-event-$index", title = "Widget event $index") },
                         widgets = data.widgets.map { if (it.id == numeric.toString()) it.copy(itemCount = 10) else it }) }

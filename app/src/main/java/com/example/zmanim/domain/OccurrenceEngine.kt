@@ -22,7 +22,7 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
         require(r.weekdays.all { it in 1..7 }) { "Choose valid weekdays." }
         if (r.frequency in setOf(Frequency.MONTHLY, Frequency.YEARLY)) {
             require(r.missingDay != null) { "Choose what happens when the day does not exist." }
-            if (event.calendar == CalendarSystem.HEBREW && r.frequency == Frequency.YEARLY) {
+            if (event.repeatCalendar == CalendarSystem.HEBREW && r.frequency == Frequency.YEARLY) {
                 val jd = JewishDate(anchor)
                 if (jd.jewishMonth == JewishDate.ADAR && !jd.isJewishLeapYear)
                     require(r.ordinaryAdar != null) { "Choose which Adar to use in leap years." }
@@ -69,12 +69,12 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
                     val hebrew = JewishDate(anchor)
                     var index = 0
                     while (true) {
-                        val first = if (event.calendar == CalendarSystem.GREGORIAN) anchor.withDayOfMonth(1).plusMonths(index.toLong())
+                        val first = if (event.repeatCalendar == CalendarSystem.GREGORIAN) anchor.withDayOfMonth(1).plusMonths(index.toLong())
                         else JewishDate(hebrew.jewishYear, hebrew.jewishMonth, 1).apply { plusMonths(index) }.localDate
                         if (first >= limit) break
-                        val next = if (event.calendar == CalendarSystem.GREGORIAN) first.plusMonths(1)
+                        val next = if (event.repeatCalendar == CalendarSystem.GREGORIAN) first.plusMonths(1)
                         else first.plusDays(JewishDate(first).daysInJewishMonth.toLong())
-                        val targetDay = if (event.calendar == CalendarSystem.GREGORIAN) anchor.dayOfMonth else hebrew.jewishDayOfMonth
+                        val targetDay = if (event.repeatCalendar == CalendarSystem.GREGORIAN) anchor.dayOfMonth else hebrew.jewishDayOfMonth
                         resolveDay(first, next, targetDay, r.missingDay)?.let { if (it >= anchor) yield(it) }
                         index += r.interval
                     }
@@ -83,10 +83,10 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
                     val original = JewishDate(anchor)
                     var index = 0
                     while (true) {
-                        val year = if (event.calendar == CalendarSystem.GREGORIAN) anchor.year + index else original.jewishYear + index
-                        val yearStart = if (event.calendar == CalendarSystem.GREGORIAN) LocalDate.of(year, 1, 1) else JewishDate(year, JewishDate.TISHREI, 1).localDate
+                        val year = if (event.repeatCalendar == CalendarSystem.GREGORIAN) anchor.year + index else original.jewishYear + index
+                        val yearStart = if (event.repeatCalendar == CalendarSystem.GREGORIAN) LocalDate.of(year, 1, 1) else JewishDate(year, JewishDate.TISHREI, 1).localDate
                         if (yearStart >= limit) break
-                        if (event.calendar == CalendarSystem.GREGORIAN) {
+                        if (event.repeatCalendar == CalendarSystem.GREGORIAN) {
                             val first = LocalDate.of(year, anchor.month, 1)
                             resolveDay(first, first.plusMonths(1), anchor.dayOfMonth, r.missingDay)?.let { if (it >= anchor) yield(it) }
                         } else {
@@ -121,9 +121,21 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
     }
 
     fun expand(event: Event, from: LocalDate, untilExclusive: LocalDate, data: AppData): List<Occurrence> =
-        dates(event, from, untilExclusive).map { occurrence(event, it, data) }.filter { it.applicable }
+        dates(event, from, untilExclusive).flatMap { date ->
+            if (event.timeKind == EventTimeKind.FIXED) fixedOccurrences(event, date) else listOf(occurrence(event, date, data))
+        }.filter { it.applicable }
+
+    private fun fixedOccurrences(event: Event, date: LocalDate): List<Occurrence> {
+        val local = LocalDateTime.of(if (event.previousEvening && event.calendar == CalendarSystem.HEBREW) date.minusDays(1) else date, LocalTime.parse(event.localTime))
+        return localIntervalSegments(local, local.plusMinutes(event.durationMinutes), ZoneId.of(event.zoneId)).mapIndexed { index, (start, end) ->
+            Occurrence("${event.id}:$date" + if (index == 0) "" else ":${start.epochSecond}", event.id, date, event.title, start, end, false, event.zoneId)
+        }
+    }
 
     fun occurrence(event: Event, date: LocalDate, data: AppData): Occurrence {
+        if (event.timeKind == EventTimeKind.FIXED) return fixedOccurrences(event, date).firstOrNull()
+            ?: Occurrence("${event.id}:$date", event.id, date, event.title, null, null, false, event.zoneId,
+                "The clock change skips this entire local interval.", applicable = false)
         val zone = ZoneId.of(event.zoneId)
         var error: String? = null
         var allDay = false
@@ -138,15 +150,7 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
                     error = "Choose the Hebrew all-day boundary in Settings."; null
                 } else { allDay = true; date.atStartOfDay(zone).toInstant() }
             }
-            EventTimeKind.FIXED -> {
-                val local = LocalDateTime.of(if (event.previousEvening && event.calendar == CalendarSystem.HEBREW) date.minusDays(1) else date, LocalTime.parse(event.localTime))
-                val offsets = zone.rules.getValidOffsets(local)
-                when {
-                    offsets.isEmpty() && event.gapPolicy == DstGapPolicy.SKIP -> { error = "This wall time does not exist because of the clock change."; null }
-                    offsets.size == 2 -> ZonedDateTime.ofLocal(local, zone, if (event.overlapPolicy == DstOverlapPolicy.LATER) offsets.last() else offsets.first()).toInstant()
-                    else -> local.atZone(zone).toInstant()
-                }
-            }
+            EventTimeKind.FIXED -> error("Handled above")
             EventTimeKind.ZMAN -> {
                 val place = data.place(event.location)
                 val profile = data.profile(event.profileId)

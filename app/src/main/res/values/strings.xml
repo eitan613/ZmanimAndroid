@@ -19,4 +19,9 @@
     <string name="retry">Retry</string>
     <string name="preferences_load_error">Your selected zmanim could not be loaded. Try again.</string>
     <string name="preferences_save_error">Your selection could not be saved. Try again.</string>
+    <string name="preview_weekday" translatable="false">Wednesday</string>
+    <string name="preview_hebrew_day" translatable="false">כ״ד</string>
+    <string name="preview_hebrew_month" translatable="false">חשון תשפ״ז</string>
+    <string name="preview_gregorian_day" translatable="false">4</string>
+    <string name="preview_gregorian_month" translatable="false">November 2026</string>
 </resources>

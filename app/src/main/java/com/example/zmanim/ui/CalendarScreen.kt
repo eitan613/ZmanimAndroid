@@ -31,19 +31,20 @@ import java.util.Locale
 import kotlin.math.*
 
 @Composable fun CalendarScreen(s: ScreenData, model: AppViewModel, onNewEvent: (EventStart) -> Unit, onZmanim: () -> Unit,
-    onEvent: (Occurrence) -> Unit, onGoTo: () -> Unit, onSettings: () -> Unit)  {
+    onEvent: (Occurrence) -> Unit, onGoTo: () -> Unit, onSettings: () -> Unit, onLocations: () -> Unit = {}, onHelp: () -> Unit = {})  {
     val settings = s.data.settings
     var search by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) }
     val locale = LocalProductLocale.current
     val listState = key(settings.calendarView, settings.primaryCalendar) { rememberLazyListState() }
     BoxWithConstraints(Modifier.fillMaxSize().widthIn(max = 840.dp)) {
-        val cellHeight = ((maxHeight - 110.dp) / s.month.days.chunked(7).size).coerceIn(84.dp, 140.dp)
+        val cellHeight = ((maxHeight - 130.dp) / s.month.days.chunked(7).size).coerceIn((104 * LocalDensity.current.fontScale.coerceAtLeast(1f)).dp, (180 * LocalDensity.current.fontScale.coerceAtLeast(1f)).dp)
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-            AppHeader(s.month.primary.label, s.month.secondary.joinToString(" / ") { it.label }, listOf(
+            AppHeader(s.month.primary.label, s.month.secondary.joinToString(" / ") { it.label } + " · " + (s.data.place()?.name ?: tr("Set app location", "הגדרת מיקום האפליקציה")), listOf(
                 tr("Today", "היום") to { model.today() }, tr("Go to date", "מעבר לתאריך") to onGoTo,
                 tr("New event", "אירוע חדש") to { onNewEvent(EventStart(s.date)) },
                 tr("Search events", "חיפוש אירועים") to { searching = !searching },
+                tr("App location", "מיקום האפליקציה") to onLocations, tr("Help", "עזרה") to onHelp,
                 tr("Settings", "הגדרות") to onSettings))
             LazyColumn(state = listState, modifier = Modifier.testTag("calendarList").fillMaxSize(), verticalArrangement = Arrangement.spacedBy(if (settings.calendarView == CalendarView.MONTH || searching) 12.dp else 0.dp)) {
                 s.error?.let { error -> item { Notice(error, true) } }
@@ -70,14 +71,7 @@ import kotlin.math.*
                 } }
                 val events = if (searching) s.data.events.filter { it.title.contains(search, true) || it.description.contains(search, true) }
                     .map { OccurrenceEngine().occurrence(it, LocalDate.parse(it.anchorDate), s.data) }
-                else s.occurrences.filter { occurrence ->
-                    if (occurrence.allDay || occurrence.start == null) occurrence.date == s.date
-                    else {
-                        val zone = runCatching { ZoneId.of(occurrence.zoneId) }.getOrDefault(ZoneId.systemDefault())
-                        val from = s.date.atStartOfDay(zone).toInstant(); val end = s.date.plusDays(1).atStartOfDay(zone).toInstant()
-                        occurrence.start < end && (occurrence.end ?: occurrence.start) > from
-                    }
-                }
+                else s.occurrences.filter { it.overlapsDay(s.date, s.data.place()?.zone() ?: ZoneId.systemDefault()) }
                 if (events.isEmpty()) item { Text(if (searching) tr("No matching events.", "אין אירועים תואמים.") else tr("No events for this day.", "אין אירועים ביום זה."), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(events, key = { it.key }) { o -> OccurrenceCard(o, settings, { onEvent(o) }) }
                 if (!searching) item { OutlinedButton(onClick = onZmanim, modifier = Modifier.fillMaxWidth()) { Text(tr("Zmanim for this day", "זמני היום הנבחר")) } }
@@ -95,25 +89,25 @@ import kotlin.math.*
         var y by remember { mutableFloatStateOf(0f) }
         val currentShift by rememberUpdatedState<(Int, Boolean) -> Unit> { amount, years -> model.shift(amount, years) }
         val swap = settings.swapScrollAxes
-        CompositionLocalProvider(LocalLayoutDirection provides if (settings.reverseGrid) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        CompositionLocalProvider(LocalLayoutDirection provides if (settings.calendarRtl()) LayoutDirection.Rtl else LayoutDirection.Ltr) {
             Column(Modifier.testTag("monthGrid").semantics {
                 customActions = listOf(
                     CustomAccessibilityAction("Previous period") { model.shift(-1); true },
                     CustomAccessibilityAction("Next period") { model.shift(1); true },
                     CustomAccessibilityAction("Previous year") { model.shift(-1, true); true },
                     CustomAccessibilityAction("Next year") { model.shift(1, true); true })
-            }.pointerInput(swap, settings.reverseGrid) {
+            }.pointerInput(swap, settings.calendarRtl()) {
                 detectDragGestures(onDragStart = { x = 0f; y = 0f }, onDragEnd = {
                     if (max(abs(x), abs(y)) > 80f) {
                         val horizontal = abs(x) > abs(y)
-                        val forward = if (horizontal) (x < 0) != settings.reverseGrid else y < 0
+                        val forward = if (horizontal) (x < 0) != settings.calendarRtl() else y < 0
                         currentShift(if (forward) 1 else -1, if (horizontal) swap else !swap)
                     }
                 }) { change, drag -> change.consume(); x += drag.x; y += drag.y }
             }) {
                 val first = if (settings.mondayFirst) 1 else 7
                 Row(Modifier.fillMaxWidth()) {
-                    (0..6).forEach { offset -> Text(DayOfWeek.of((first - 1 + offset) % 7 + 1).getDisplayName(java.time.format.TextStyle.NARROW, if (settings.labels == LabelLanguage.HEBREW) Locale.forLanguageTag("he") else locale),
+                    (0..6).forEach { offset -> Text(weekdayLabel(DayOfWeek.of((first - 1 + offset) % 7 + 1), settings.labels == LabelLanguage.HEBREW, locale),
                         modifier = Modifier.weight(1f).padding(vertical = 8.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center, style = MaterialTheme.typography.labelMedium) }
                 }
                 s.month.days.chunked(7).forEach { week ->
@@ -121,15 +115,14 @@ import kotlin.math.*
                         week.forEach { day ->
                             val selected = day.date == s.date
                             val inMonth = day.date >= s.month.primary.start && day.date < s.month.primary.endExclusive
-                            val count = s.occurrences.count { it.date == day.date }
+                            val dayEvents = s.occurrences.filter { it.overlapsDay(day.date, s.data.place()?.zone() ?: ZoneId.systemDefault()) }
+                            val count = dayEvents.size
                             val alpha = if (inMonth) 1f else 0.48f
                             val countLabel = tr("$count events", "$count אירועים")
                             val base = MaterialTheme.colorScheme.surface
                             val category = day.category ?: if (day.candleLighting) "candles" else null
                             val tint = category?.let { Color(settings.specialDayColor(it).toInt()) }
-                            val bg = if (settings.colorSpecialDays && tint != null) {
-                                if (base.luminance() < 0.3f) lerp(base, tint, 0.22f) else tint
-                            } else base
+                            val bg = if (settings.colorSpecialDays && tint != null && !effectiveDark(settings)) tint else base
                             val onCell = if (bg.luminance() < 0.3f) Color.White else Color(0xFF172C3D)
                             val today = day.date == LocalDate.now(s.data.place()?.zone() ?: ZoneId.systemDefault())
                             Column(Modifier.weight(1f).height(cellHeight).background(bg)
@@ -146,16 +139,23 @@ import kotlin.math.*
                                 val primary = if (settings.primaryCalendar == CalendarSystem.HEBREW) {
                                     engine.formatter(true).formatHebrewNumber(day.hebrewDay).replace("׳", "").replace("״", "")
                                 } else day.date.dayOfMonth.toString()
-                                Text(if (today) "$primary •" else primary, style = MaterialTheme.typography.titleMedium, color = onCell.copy(alpha = alpha), fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                                listOf(day.holiday, day.parsha, day.specialParsha, day.omer).filter { it.isNotEmpty() }.forEach { label ->
-                                    Text(label.replace("ראש חודש ", "ר״ח "), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell.copy(alpha = alpha * 0.85f))
-                                }
-                                if (count > 0) Text("• $count", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.weight(1f))
-                                Text(if (settings.primaryCalendar == CalendarSystem.HEBREW) day.date.dayOfMonth.toString()
+                                CalendarCellDates(day.date.toString(), if (today) "$primary •" else primary,
+                                    if (settings.primaryCalendar == CalendarSystem.HEBREW) day.date.dayOfMonth.toString()
                                     else engine.formatter(true).formatHebrewNumber(day.hebrewDay).replace("׳", "").replace("״", ""),
-                                    Modifier.align(Alignment.End), style = MaterialTheme.typography.labelSmall,
-                                    color = onCell.copy(alpha = alpha * 0.75f))
+                                    onCell.copy(alpha = alpha), selected)
+                                Column(Modifier.weight(1f)) {
+                                    listOf(day.holiday, day.parsha, day.specialParsha, day.omer).filter { it.isNotEmpty() }.forEach { label ->
+                                        CalendarCellLabel(label, onCell.copy(alpha = alpha * 0.9f))
+                                    }
+                                }
+                                if (count > 0) {
+                                    if (settings.showEventBasics) {
+                                        val event = dayEvents.first()
+                                        val clock = event.start?.let { TimeFormatting.format(it, ZoneId.of(event.zoneId), settings.copy(showSeconds = false), DateFormat.is24HourFormat(LocalContext.current), locale) }
+                                        Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
+                                        if (count > 1) Text(tr("+${count - 1} more", "+${count - 1} נוספים"), maxLines = 1, style = MaterialTheme.typography.labelSmall, color = onCell)
+                                    } else Text("• $count", style = MaterialTheme.typography.labelSmall, color = onCell)
+                                }
                             }
                         }
                     }
@@ -166,6 +166,27 @@ import kotlin.math.*
         val chosen = engine.day(s.date, settings)
         listOf(chosen.holiday, chosen.parsha, chosen.specialParsha, chosen.omer).filter { it.isNotBlank() }.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
+    }
+}
+
+/** Keep both date numbers intact when accessibility text no longer fits side by side. */
+@Composable private fun CalendarCellDates(date: String, primary: String, secondary: String, color: Color, selected: Boolean) {
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val primaryStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+    val secondaryStyle = MaterialTheme.typography.labelSmall
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val primaryWidth = measurer.measure(primary, primaryStyle).size.width.coerceAtLeast(1)
+        val secondaryWidth = measurer.measure(secondary, secondaryStyle).size.width
+        val fittedPrimary = primaryStyle.copy(fontSize = primaryStyle.fontSize * (constraints.maxWidth.toFloat() / primaryWidth).coerceAtMost(1f))
+        if (primaryWidth + secondaryWidth > constraints.maxWidth) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                Text(primary, style = fittedPrimary, color = color, maxLines = 1, softWrap = false)
+                Text(secondary, modifier = Modifier.align(Alignment.Start).testTag("secondaryDate:$date"), style = secondaryStyle, color = color.copy(alpha = color.alpha * 0.75f), maxLines = 1, softWrap = false)
+            }
+        } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(primary, style = fittedPrimary, color = color, maxLines = 1, softWrap = false)
+            Text(secondary, modifier = Modifier.testTag("secondaryDate:$date"), style = secondaryStyle, color = color.copy(alpha = color.alpha * 0.75f), maxLines = 1, softWrap = false)
+        }
     }
 }
 
@@ -211,7 +232,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
     val zone = s.data.place()?.zone() ?: ZoneId.systemDefault()
     val maxHours = days.maxOf { Duration.between(it.atStartOfDay(zone), it.plusDays(1).atStartOfDay(zone)).toHours().toInt() }
     stickyHeader(key = "scheduleHeader") {
-        CompositionLocalProvider(LocalLayoutDirection provides if (s.data.settings.reverseGrid) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        CompositionLocalProvider(LocalLayoutDirection provides if (s.data.settings.calendarRtl()) LayoutDirection.Rtl else LayoutDirection.Ltr) {
             Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).testTag("hourSchedule")) {
                 Spacer(Modifier.width(38.dp))
                 days.forEach { date ->
@@ -225,19 +246,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
         }
     }
     item(key = "allDay") {
-        s.occurrences.filter { it.allDay && it.date in days }.forEach { o ->
+        s.occurrences.filter { it.allDay && days.any { day -> it.overlapsDay(day, zone) } }.forEach { o ->
             TextButton(onClick = { onEvent(o) }) { Text("${o.date}: ${o.title}") }
         }
     }
     items(maxHours, key = { "hour:$it" }) { hour ->
         val is24 = s.data.settings.use24Hour ?: DateFormat.is24HourFormat(LocalContext.current)
-        CompositionLocalProvider(LocalLayoutDirection provides if (s.data.settings.reverseGrid) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        CompositionLocalProvider(LocalLayoutDirection provides if (s.data.settings.calendarRtl()) LayoutDirection.Rtl else LayoutDirection.Ltr) {
             Row(Modifier.fillMaxWidth().height(64.dp).semantics {
                 customActions = listOf(CustomAccessibilityAction("Previous period") { model.shift(-1); true }, CustomAccessibilityAction("Next period") { model.shift(1); true })
-            }.pointerInput(s.data.settings.reverseGrid) {
+            }.pointerInput(s.data.settings.calendarRtl()) {
                 var dx = 0f
                 detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
-                    if (abs(dx) > 80f) model.shift(if ((dx < 0) != s.data.settings.reverseGrid) 1 else -1)
+                    if (abs(dx) > 80f) model.shift(if ((dx < 0) != s.data.settings.calendarRtl()) 1 else -1)
                 }) { change, amount -> change.consume(); dx += amount }
             }) {
                 Text("\u2066" + (if (days.size == 1) days.first().atStartOfDay(zone).toInstant().plusSeconds(hour * 3600L).atZone(zone).toLocalTime() else LocalTime.MIDNIGHT.plusHours(hour.toLong())).format(DateTimeFormatter.ofPattern(if (is24) "HH" else "h a", locale)) + "\u2069",
@@ -265,4 +286,39 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
             }
         }
     }
+}
+
+/** Wrap at measured word boundaries, including Hebrew; never split a built-in label mid-word. */
+@Composable private fun CalendarCellLabel(text: String, color: Color) {
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val style = MaterialTheme.typography.labelSmall
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val width = with(density) { maxWidth.toPx() }.coerceAtLeast(1f)
+        val words = text.replace("ראש חודש ", "ר״ח ").replace("פרשת ", "").split(Regex("\\s+"))
+        val lines = remember(text, width, style, density.fontScale) {
+            buildList {
+                var line = ""
+                for (word in words) {
+                    val candidate = if (line.isBlank()) word else "$line $word"
+                    if (line.isNotBlank() && measurer.measure(candidate, style).size.width > width) { add(line); line = word }
+                    else line = candidate
+                }
+                if (line.isNotBlank()) add(line)
+            }
+        }
+        Column {
+            lines.forEach { line ->
+                val measured = measurer.measure(line, style).size.width.coerceAtLeast(1)
+                val scale = (width / measured).coerceAtMost(1f)
+                Text(line, softWrap = false, maxLines = 1, style = style.copy(fontSize = style.fontSize * scale), color = color)
+            }
+        }
+    }
+}
+
+@Composable internal fun effectiveDark(settings: AppSettings): Boolean = when (settings.appearance) {
+    Appearance.DARK -> true
+    Appearance.LIGHT -> false
+    Appearance.SYSTEM -> isSystemInDarkTheme()
 }

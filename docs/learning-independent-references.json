@@ -1,0 +1,102 @@
+{
+  "2024-04-08": {
+    "source": "https://www.sefaria.org/api/calendars?year=2024&month=4&day=8",
+    "references": [
+      {
+        "title": "Daf Yomi",
+        "ref": "Bava Metzia 40",
+        "en": "Bava Metzia 40"
+      },
+      {
+        "title": "Daily Mishnah",
+        "ref": "Mishnah Nazir 1:6-7",
+        "en": "Mishnah Nazir 1:6-7"
+      },
+      {
+        "title": "Daily Rambam",
+        "ref": "Mishneh Torah, Appraisals and Devoted Property 5",
+        "en": "Appraisals and Devoted Property 5"
+      },
+      {
+        "title": "Daily Rambam (3 Chapters)",
+        "ref": "Mishneh Torah, Foreign Worship and Customs of the Nations 1-3",
+        "en": "Foreign Worship and Customs of the Nations 1-3"
+      },
+      {
+        "title": "Tanya Yomi",
+        "ref": "Tanya, Part I; Likkutei Amarim 39:11",
+        "en": "29 Adar II"
+      },
+      {
+        "title": "Yerushalmi Yomi",
+        "ref": "Jerusalem Talmud Eruvin 3:7:1-8:3",
+        "en": "Jerusalem Talmud Eruvin 25"
+      }
+    ]
+  },
+  "2026-11-04": {
+    "source": "https://www.sefaria.org/api/calendars?year=2026&month=11&day=4",
+    "references": [
+      {
+        "title": "Daf Yomi",
+        "ref": "Bekhorot 47",
+        "en": "Bekhorot 47"
+      },
+      {
+        "title": "Daily Mishnah",
+        "ref": "Mishnah Oholot 15:4-5",
+        "en": "Mishnah Oholot 15:4-5"
+      },
+      {
+        "title": "Daily Rambam",
+        "ref": "Mishneh Torah, Forbidden Intercourse 16",
+        "en": "Forbidden Intercourse 16"
+      },
+      {
+        "title": "Daily Rambam (3 Chapters)",
+        "ref": "Mishneh Torah, Ownerless Property and Gifts 7-9",
+        "en": "Ownerless Property and Gifts 7-9"
+      },
+      {
+        "title": "Tanya Yomi",
+        "ref": "Tanya, Part IV; Iggeret HaKodesh 30:1",
+        "en": "24 Cheshvan"
+      },
+      {
+        "title": "Yerushalmi Yomi",
+        "ref": "Jerusalem Talmud Sanhedrin 3:5:7-6:3",
+        "en": "Jerusalem Talmud Sanhedrin 16"
+      }
+    ]
+  },
+  "2027-08-31": {
+    "source": "https://www.sefaria.org/api/calendars?year=2027&month=8&day=31",
+    "references": [
+      {
+        "title": "Daily Mishnah",
+        "ref": "Mishnah Yadayim 2:4-3:1",
+        "en": "Mishnah Yadayim 2:4-3:1"
+      },
+      {
+        "title": "Daily Rambam",
+        "ref": "Mishneh Torah, Offerings for Those with Incomplete Atonement 4",
+        "en": "Offerings for Those with Incomplete Atonement 4"
+      },
+      {
+        "title": "Daily Rambam (3 Chapters)",
+        "ref": "Mishneh Torah, Vessels 21-23",
+        "en": "Vessels 21-23"
+      },
+      {
+        "title": "Tanya Yomi",
+        "ref": "Tanya, Part IV; Iggeret HaKodesh 9:1",
+        "en": "28 Av"
+      },
+      {
+        "title": "Yerushalmi Yomi",
+        "ref": "Jerusalem Talmud Sheviit 2:5:8-3:1:3",
+        "en": "Jerusalem Talmud Sheviit 6"
+      }
+    ]
+  }
+}

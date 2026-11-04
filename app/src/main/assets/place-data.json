@@ -2,7 +2,9 @@
   "cities": {
     "source": "https://download.geonames.org/export/dump/cities5000.zip",
     "license": "CC BY 4.0",
-    "records": 69991
+    "records": 69991,
+    "snapshotSha256": "9cf1d64ed216784ca964317bece22942ef6f1bee8a23e21352a1b960ce421815",
+    "transformations": "Selected names/aliases, coordinates, timezone and elevation fields; reviewed overrides in locality-corrections.json applied at runtime."
   },
   "timezones": {
     "source": "https://github.com/evansiroky/timezone-boundary-builder/releases/download/2026f/timezones-with-oceans.geojson.zip",

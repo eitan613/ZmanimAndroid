@@ -35,17 +35,28 @@ class MainActivity : ComponentActivity() {
     private var launchEventId by mutableStateOf<String?>(null)
     private var launchDate by mutableStateOf<String?>(null)
     private var launchToken by mutableIntStateOf(0)
+    private var launchProvider by mutableStateOf<Long?>(null)
+    private var launchInstance by mutableStateOf<Long?>(null)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        readLaunch(intent)
-        setContent { ZmanimApp(launchDestination, launchEventId, launchDate, launchToken) }
+        launchToken = savedInstanceState?.getInt("launch-token") ?: 0
+        readLaunch(intent, savedInstanceState == null)
+        setContent { ZmanimApp(launchDestination, launchEventId, launchDate, launchToken, launchProvider, launchInstance) }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); readLaunch(intent) }
-    private fun readLaunch(intent: Intent) { launchDestination = intent.getStringExtra("destination"); launchEventId = intent.getStringExtra("eventId"); launchDate = intent.getStringExtra("date"); launchToken += 1 }
+    override fun onSaveInstanceState(outState: Bundle) { outState.putInt("launch-token", launchToken); super.onSaveInstanceState(outState) }
+    private fun readLaunch(intent: Intent, increment: Boolean = true) {
+        launchDestination = intent.getStringExtra("destination")
+        launchEventId = intent.getStringExtra("eventId")
+        launchDate = intent.getStringExtra("date")
+        launchProvider = if (intent.hasExtra("providerId")) intent.getLongExtra("providerId", 0) else null
+        launchInstance = if (intent.hasExtra("instanceStart")) intent.getLongExtra("instanceStart", 0) else null
+        if (increment) launchToken += 1
+    }
 }
 
-@Composable fun ZmanimApp(destination: String? = null, eventId: String? = null, launchDate: String? = null, launchToken: Int = 0, model: AppViewModel = viewModel()) {
+@Composable fun ZmanimApp(destination: String? = null, eventId: String? = null, launchDate: String? = null, launchToken: Int = 0, providerId: Long? = null, instanceStart: Long? = null, model: AppViewModel = viewModel()) {
     val state by model.state.collectAsStateWithLifecycle()
     val screen by model.screen.collectAsStateWithLifecycle()
     val settings = (state as? RepositoryState.Ready)?.data?.settings ?: AppSettings()
@@ -78,27 +89,45 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(model, hebrew) { model.message.collect { snackbar.showSnackbar(localizeMessage(it, hebrew)) } }
             var initialNavigationDone by rememberSaveable { mutableStateOf(false) }
             var handledLaunch by rememberSaveable { mutableStateOf("") }
-            LaunchedEffect(destination, settings.onboardingComplete, screen != null, launchToken) {
-                if (screen == null || (initialNavigationDone && destination == null)) return@LaunchedEffect
-                val target = destination ?: if (settings.openingView == OpeningView.ZMANIM) "zmanim" else "calendar"
-                if (target in listOf("calendar", "zmanim", "settings")) {
-                    nav.navigate(target) { popUpTo(nav.graph.startDestinationId); launchSingleTop = true }
-                    initialNavigationDone = true
-                }
-            }
-            LaunchedEffect(eventId, screen != null, launchDate, launchToken) {
+            LaunchedEffect(screen != null, launchToken) {
                 val current = screen ?: return@LaunchedEffect
-                val request = "$launchToken:$eventId:$launchDate"
-                if (eventId != null && request != handledLaunch) current.data.events.find { it.id == eventId }?.let { event ->
-                    val date = runCatching { java.time.LocalDate.parse(launchDate) }.getOrNull() ?: java.time.LocalDate.parse(event.anchorDate)
-                    model.select(date); editing = event
-                    occurrenceSnapshot = OccurrenceSnapshot.from(OccurrenceEngine().occurrence(event, date, current.data))
-                    dialog = "event-detail"; handledLaunch = request
+                val request = "$launchToken:$destination:$eventId:$launchDate:$providerId:$instanceStart"
+                if (handledLaunch == request) return@LaunchedEffect
+                if (initialNavigationDone && destination == null && eventId == null && providerId == null && launchDate == null) {
+                    handledLaunch = request; return@LaunchedEffect
                 }
+                val target = when (destination) {
+                    "settings" -> "settings"
+                    "zmanim" -> "zmanim"
+                    "calendar", "location", "today" -> "calendar"
+                    else -> if (settings.openingView == OpeningView.ZMANIM && eventId == null && providerId == null) "zmanim" else "calendar"
+                }
+                // A single launch effect decides destination and date before opening details.
+                nav.navigate(target) { popUpTo(nav.graph.startDestinationId); launchSingleTop = true }
+                if (destination == "today") model.today()
+                runCatching { java.time.LocalDate.parse(launchDate) }.getOrNull()?.let(model::select)
+                dialog = null; nativeId = null; nativeCalendar = null
+                if (destination == "location") dialog = "locations"
+                if (eventId != null) {
+                    val event = current.data.events.find { it.id == eventId }
+                    if (event == null) model.message.emit("This event was deleted.") else {
+                        val date = runCatching { java.time.LocalDate.parse(launchDate) }.getOrNull() ?: java.time.LocalDate.parse(event.anchorDate)
+                        val occurrences = OccurrenceEngine().expand(event, date, date.plusDays(1), current.data)
+                        val occurrence = occurrences.find { it.start?.toEpochMilli() == instanceStart } ?: occurrences.firstOrNull()
+                        if (occurrence == null) model.message.emit("This occurrence is no longer available.") else {
+                            model.select(date); editing = event; occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "event-detail"
+                        }
+                    }
+                } else if (providerId != null && instanceStart != null) {
+                    val occurrence = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { model.app.calendars.instance(providerId, instanceStart) }
+                    if (occurrence == null) model.message.emit("This device-calendar occurrence is no longer available.")
+                    else { model.select(occurrence.date); occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-detail" }
+                }
+                initialNavigationDone = true; handledLaunch = request
             }
             androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { model.visible(true); model.refresh(); onPauseOrDispose { model.visible(false) } }
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-                NavigationBar {
+                if (route in listOf("calendar", "zmanim")) NavigationBar {
                     val ready = screen
                     listOf(
                         Triple("gregorian", tr("Gregorian", "לועזי"), Icons.Default.DateRange),
@@ -114,12 +143,17 @@ class MainActivity : ComponentActivity() {
                             "day" -> settings.calendarView == CalendarView.DAY
                             else -> false
                         }
-                        NavigationBarItem(selected = selected, enabled = ready != null, onClick = {
+                        NavigationBarItem(selected = selected, colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant), enabled = ready != null, onClick = {
                             if (path != "zmanim") model.settings { it.copy(
                                 calendarView = when(path) { "week" -> CalendarView.WEEK; "day" -> CalendarView.DAY; else -> CalendarView.MONTH },
                                 primaryCalendar = when(path) { "gregorian" -> CalendarSystem.GREGORIAN; "hebrew" -> CalendarSystem.HEBREW; else -> it.primaryCalendar }) }
                             nav.navigate(if (path == "zmanim") "zmanim" else "calendar") {
-                                popUpTo(nav.graph.startDestinationId) { saveState = true }; launchSingleTop = true; restoreState = true
+                                popUpTo(nav.graph.startDestinationId); launchSingleTop = true
                             }
                         }, icon = { if (path in listOf("hebrew", "week", "day")) Text(when(path) { "hebrew" -> "א"; "week" -> "7"; else -> "1" }, style = MaterialTheme.typography.titleLarge) else Icon(icon, null) }, label = { Text(label, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) })
                     }
@@ -134,19 +168,16 @@ class MainActivity : ComponentActivity() {
                         is RepositoryState.Ready -> if (screen == null) CircularProgressIndicator() else {
                             val s = screen!!
                             val openEvent: (Occurrence) -> Unit = { occurrence ->
-                                if (occurrence.providerId != null) {
-                                    model.act {
-                                        val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { model.app.calendars.ordinaryEvent(occurrence.providerId) }
-                                        if (loaded == null || s.calendars.none { it.id == loaded.second && it.writable }) model.app.startActivity(model.app.calendars.viewIntent(occurrence.providerId).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                        else { editing = loaded.first; nativeId = occurrence.providerId; nativeCalendar = loaded.second; occurrenceSnapshot = null; dialog = "event" }
-                                    }
-                                } else { occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); editing = s.data.events.find { it.id == occurrence.eventId }; nativeId = null; nativeCalendar = null; dialog = "event-detail" }
+                                occurrenceSnapshot = OccurrenceSnapshot.from(occurrence)
+                                nativeId = null; nativeCalendar = null
+                                if (occurrence.providerId != null) dialog = "provider-detail"
+                                else { editing = s.data.events.find { it.id == occurrence.eventId }; dialog = "event-detail" }
                             }
                             NavHost(nav, startDestination = "calendar") {
-                                composable("calendar") { CalendarScreen(s, model, onNewEvent = { start -> editing = Event(title = "", anchorDate = start.date.toString(), localTime = (start.time ?: java.time.LocalTime.of(9, 0)).toString(), overlapPolicy = start.overlapPolicy, zoneId = s.data.place()?.zoneId ?: java.time.ZoneId.systemDefault().id,
-                                        location = s.data.settings.location, profileId = s.data.settings.activeProfileId); nativeId = null; nativeCalendar = null; occurrenceSnapshot = null; dialog = "event" },
-                                    onZmanim = { nav.navigate("zmanim") }, onEvent = openEvent, onGoTo = { dialog = "go-to" }, onSettings = { nav.navigate("settings") }) }
-                                composable("zmanim") { ZmanimScreen(s, model, onProfiles = { dialog = "profiles" }, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocations = { dialog = "locations" }, onCustom = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "custom" } }, onGoTo = { dialog = "go-to" }, onSettings = { nav.navigate("settings") }) }
+                                composable("calendar") { CalendarScreen(s, model, onNewEvent = { start -> editing = Event(title = "", anchorDate = start.date.toString(), localTime = (start.time ?: java.time.LocalTime.of(9, 0)).toString(), zoneId = s.data.place()?.zoneId ?: java.time.ZoneId.systemDefault().id,
+                                        location = LocationBinding(), profileId = s.data.settings.activeProfileId); nativeId = null; nativeCalendar = null; occurrenceSnapshot = null; dialog = "event" },
+                                    onZmanim = { nav.navigate("zmanim") }, onEvent = openEvent, onGoTo = { dialog = "go-to" }, onSettings = { nav.navigate("settings") }, onLocations = { dialog = "locations" }, onHelp = { dialog = "help" }) }
+                                composable("zmanim") { ZmanimScreen(s, model, onProfiles = { dialog = "profiles" }, onMethods = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "methods" } }, onLocations = { dialog = "locations" }, onCustom = { model.act { if (model.repository.data.profile() == null) model.repository.saveProfile(Profile()); dialog = "custom" } }, onGoTo = { dialog = "go-to" }, onSettings = { nav.navigate("settings") }, onHelp = { dialog = "help" }, onReminders = { dialog = "reminders" }, onProfileSettings = { dialog = "active-profile" }) }
                                 composable("settings") { SettingsScreen(s, model, permission, onProfiles = { dialog = "profiles" }, onLocations = { dialog = "locations" }, onBackup = { dialog = "backup" }, onBack = { nav.popBackStack() }) }
                             }
                             when (dialog) {
@@ -156,11 +187,17 @@ class MainActivity : ComponentActivity() {
                                     if (scopeChoice == "series") occurrenceSnapshot = null
                                     else occurrenceSnapshot = OccurrenceSnapshot.from(o.copy(key = scopeChoice))
                                 }) }
+                                "provider-detail" -> selectedOccurrence?.let { o -> ProviderEventDetails(s, model, o, { dialog = null }) { event, calendar ->
+                                    editing = event; nativeId = o.providerId; nativeCalendar = calendar; occurrenceSnapshot = null; dialog = "event"
+                                } }
+                                "help" -> HelpDialog { dialog = null }
+                                "reminders" -> ProfileRemindersDialog(s, model) { dialog = null }
+                                "active-profile" -> s.data.profile()?.let { ProfileEditor(it, s, model) { dialog = null } }
                                 "profiles" -> ProfilesDialog(s, model) { dialog = null }
                                 "methods" -> s.data.profile()?.let { MethodPicker(it, s, model, onCustom = { dialog = "custom" }) { dialog = null } }
                                 "custom" -> s.data.profile()?.let { CustomZmanDialog(it, s, model) { dialog = null } }
                                 "locations" -> LocationsDialog(s, model, permission) { dialog = null }
-                                "go-to" -> GoToDialog(s.date, { model.select(it); dialog = null }, { dialog = null })
+                                "go-to" -> GoToDialog(s.date, { model.select(it); dialog = null }, { dialog = null }, settings.primaryCalendar)
                                 "backup" -> BackupDialog(s, model) { dialog = null }
                             }
 

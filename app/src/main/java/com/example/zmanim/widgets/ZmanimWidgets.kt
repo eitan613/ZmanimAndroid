@@ -14,13 +14,16 @@ import java.time.*
 
 internal data class WidgetLine(val title: String, val subtitle: String, val intent: android.content.Intent, val targetMillis: Long? = null)
 
-open class CalendarWidget(private val kind: WidgetKind) : GlanceAppWidget() {
+open class CalendarWidget(private val kind: WidgetKind, private val dateCalendar: CalendarSystem = CalendarSystem.HEBREW) : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val app = context.applicationContext as ZmanimApplication
         val data = app.awaitData()
         val widgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
-        val config = data.widgets.find { it.id == widgetId.toString() } ?: WidgetConfig(widgetId.toString(), kind)
+        val config = data.widgets.find { it.id == widgetId.toString() } ?: WidgetConfig(widgetId.toString(), kind, calendar = dateCalendar)
+        if (data.widgets.none { it.id == widgetId.toString() }) app.repository.update { current ->
+            if (current.widgets.any { it.id == config.id }) current else current.copy(widgets = current.widgets + config)
+        }
         val settings = data.settings
         val productLocale = settings.productLocale()
         val isHebrewUi = settings.language == Language.HEBREW || settings.language == Language.SYSTEM && context.resources.configuration.locales[0].language in setOf("he", "iw")
@@ -29,19 +32,24 @@ open class CalendarWidget(private val kind: WidgetKind) : GlanceAppWidget() {
         val now = Instant.now()
         val today = LocalDate.now(place?.zone() ?: ZoneId.systemDefault())
         val hebrew = settings.labels == LabelLanguage.HEBREW
-        val openCalendar = Intent(context, MainActivity::class.java).putExtra("destination", "calendar")
-        val openZmanim = Intent(context, MainActivity::class.java).putExtra("destination", "zmanim")
+        val openCalendar = widgetLaunch(context, widgetId, "calendar", today)
+        val openZmanim = widgetLaunch(context, widgetId, if (place == null) "location" else "zmanim", today)
         val rows: List<WidgetLine> = when (kind) {
-            WidgetKind.DATE, WidgetKind.COMBINED -> emptyList()
+            WidgetKind.DATE -> emptyList()
+            WidgetKind.COMBINED -> app.learning.rows(today, config.learning, settings).map { row ->
+                WidgetLine(row.label, row.value, if (config.openingView == OpeningView.ZMANIM) openZmanim else openCalendar)
+            }
             WidgetKind.EVENTS -> {
-                val events = data.events.flatMap { OccurrenceEngine().expand(it, today.minusDays(1), today.plusYears(1), data) }
+                val events = data.events.flatMap { OccurrenceEngine().expand(it, today.minusDays(it.durationMinutes / 1440 + 2), today.plusYears(1), data) }
                     .filter { it.start != null && (it.start >= now || it.end?.let { end -> end > now } == true) }.toMutableList()
                 if (settings.showDeviceEvents) events += runCatching { app.calendars.instances(now, now.plus(Duration.ofDays(365)), settings.visibleCalendarIds) }.getOrDefault(emptyList())
                     .filter { o -> data.exports.none { it.providerId == o.providerId && it.state == "MANAGED" } }
                 events.sortedBy { it.start }.take(config.itemCount.coerceIn(1, 10)).map { o ->
-                    val intent = if (config.tap == WidgetTap.EVENT && o.providerId != null) app.calendars.viewIntent(o.providerId)
-                    else openCalendar.clone() as Intent
-                    if (config.tap == WidgetTap.EVENT && o.providerId == null) intent.putExtra("eventId", o.eventId).putExtra("date", o.date.toString())
+                    val intent = widgetLaunch(context, widgetId, "calendar", o.date, o.key)
+                    if (config.tap == WidgetTap.EVENT) {
+                        if (o.providerId != null) intent.putExtra("providerId", o.providerId).putExtra("instanceStart", o.start!!.toEpochMilli())
+                        else intent.putExtra("eventId", o.eventId).putExtra("instanceStart", o.start!!.toEpochMilli())
+                    }
                     WidgetLine(o.title, if (o.allDay) "${o.date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM", productLocale))} · ${text("All day", "כל היום")}" else "${o.date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM", productLocale))} · ${TimeFormatting.format(o.start!!, ZoneId.of(o.zoneId), settings, android.text.format.DateFormat.is24HourFormat(context), productLocale)}", intent)
                 }
             }
@@ -64,6 +72,7 @@ open class CalendarWidget(private val kind: WidgetKind) : GlanceAppWidget() {
 class EventsWidget : CalendarWidget(WidgetKind.EVENTS)
 class ZmanimWidget : CalendarWidget(WidgetKind.ZMANIM)
 class DateWidget : CalendarWidget(WidgetKind.DATE)
+class GregorianDateWidget : CalendarWidget(WidgetKind.DATE, CalendarSystem.GREGORIAN)
 class CombinedWidget : CalendarWidget(WidgetKind.COMBINED)
 
 abstract class BaseWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -79,11 +88,12 @@ private fun kotlinx.coroutines.CoroutineScope.launchWidgetDelete(app: ZmanimAppl
 class EventsWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = EventsWidget() }
 class ZmanimWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ZmanimWidget() }
 class DateWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = DateWidget() }
+class GregorianDateWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = GregorianDateWidget() }
 class CombinedWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = CombinedWidget() }
 
 object WidgetUpdates {
     suspend fun refresh(context: Context, data: AppData) {
-        EventsWidget().updateAll(context); ZmanimWidget().updateAll(context); DateWidget().updateAll(context); CombinedWidget().updateAll(context)
+        EventsWidget().updateAll(context); ZmanimWidget().updateAll(context); DateWidget().updateAll(context); GregorianDateWidget().updateAll(context); CombinedWidget().updateAll(context)
         val now = Instant.now()
         val boundaries = mutableListOf<Instant>()
         data.widgets.forEach { config ->
@@ -119,3 +129,9 @@ class WidgetBoundaryReceiver : BroadcastReceiver() {
         app.runBackground(pending) { WidgetUpdates.refresh(context, it.repository.data); it.reminders.updateDateNotification(it.repository.data) }
     }
 }
+
+internal fun widgetLaunch(context: Context, id: Int, destination: String, date: LocalDate, identity: String = destination): Intent =
+    Intent(context, MainActivity::class.java)
+        .setData(android.net.Uri.parse("zmanim://widget/$id/${android.net.Uri.encode(identity)}"))
+        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .putExtra("destination", destination).putExtra("date", date.toString()).putExtra("widgetId", id)

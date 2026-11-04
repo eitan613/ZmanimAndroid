@@ -10,7 +10,7 @@ with zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(url, timeout=90).read()))
  cities=[]
  for line in lines:
   f=line.split('\t')
-  aliases=','.join(dict.fromkeys([f[1],f[2]]+[x for x in f[3].split(',') if any('\u0590' <= c <= '\u05ff' for c in x)]))
+  aliases=','.join(dict.fromkeys([f[1],f[2]]+f[3].split(',')))
   cities.append('\t'.join([f[0],f[1],f[8],f[4],f[5],f[17],f[15],aliases]))
  with gzip.open(out/'cities.tsv.gzip','wt',encoding='utf8') as f:f.write('\n'.join(cities))
 print('Cities:',len(cities),flush=True)

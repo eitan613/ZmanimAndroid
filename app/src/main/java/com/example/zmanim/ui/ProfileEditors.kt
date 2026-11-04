@@ -116,13 +116,13 @@ import kotlinx.serialization.encodeToString
         ConfirmDialog(tr("Delete ${z.name}?", "למחוק את ${z.name}?"),
             if (used.isEmpty()) tr("Its selection and reminders will also be removed.", "גם הבחירה והתזכורות יוסרו.") else tr("Replace dependencies first: ", "יש להחליף תחילה את התלויות: ") + used.joinToString(),
             tr("Delete", "מחיקה"), { deleting = null }) {
-            if (used.isEmpty()) model.act { model.repository.updateProfile(profile.id) { latest -> latest.copy(custom = latest.custom.filterNot { it.id == z.id }, selected = latest.selected - z.id, reminders = latest.reminders.filterNot { it.methodId == z.id }) } }
+            if (used.isEmpty()) model.act { model.repository.updateProfile(profile.id) { latest -> latest.copy(custom = latest.custom.filterNot { it.id == z.id }, selected = latest.selected - z.id, displayNames = latest.displayNames - z.id, reminders = latest.reminders.filterNot { it.methodId == z.id }) } }
             deleting = null
         }
     }
 }
 
-@Composable private fun ProfileEditor(initial: Profile, s: ScreenData, model: AppViewModel, onDismiss: () -> Unit) {
+@Composable fun ProfileEditor(initial: Profile, s: ScreenData, model: AppViewModel, onDismiss: () -> Unit) {
     var draft by rememberDraft("profile-${initial.id}", initial)
     var choosing by remember { mutableStateOf(false) }
     var customDialog by remember { mutableStateOf(false) }
@@ -150,7 +150,7 @@ import kotlinx.serialization.encodeToString
             reminders = if (draft.reminders == initial.reminders) latest.reminders else draft.reminders) }
     }) {
         Field(tr("Profile name", "שם הפרופיל"), draft.name, { draft = draft.copy(name = it) })
-        Toggle(tr("Adjust supported times for location elevation", "התאמת זמנים נתמכים לגובה המקום"), draft.options.useElevation, { draft = draft.copy(options = draft.options.copy(useElevation = it)) }, tr("Uses the saved height of the location for methods that support elevation. Sea-level methods stay at sea level.", "משתמש בגובה השמור של המקום בשיטות התומכות בגובה. שיטות פני הים נשארות בגובה פני הים."))
+        Toggle(tr("Use elevation for other supported zmanim", "שימוש בגובה לזמנים נתמכים אחרים"), draft.options.useElevation, { draft = draft.copy(options = draft.options.copy(useElevation = it)) }, tr("Explicit adjusted sunrise/sunset always use the location height. Sea-level methods always ignore it. This switch controls other supported methods.", "זריחה ושקיעה מותאמות תמיד משתמשות בגובה המקום. שיטות פני הים תמיד מתעלמות ממנו. המתג קובע עבור שיטות נתמכות אחרות."))
         Toggle(tr("Use solar noon for chatzos", "חצות לפי מעבר השמש"), draft.options.astronomicalChatzos, { draft = draft.copy(options = draft.options.copy(astronomicalChatzos = it)) }, tr("On: the sun crossing the local meridian. Off: the midpoint between sunrise and sunset.", "פעיל: מעבר השמש במרידיאן המקומי. כבוי: אמצע הזמן שבין הזריחה לשקיעה."))
         Toggle(tr("Calculate morning and afternoon hours separately", "חישוב נפרד של שעות הבוקר ואחר הצהריים"), draft.options.astronomicalHalfDays,
             { draft = draft.copy(options = draft.options.copy(astronomicalHalfDays = it)) }, tr("For supported methods, divide each interval to/from chatzos into six hours instead of dividing the full day into twelve.", "בשיטות נתמכות, מחלק כל מרווח עד חצות או מחצות לשש שעות, במקום לחלק את כל היום לשתים עשרה."))
@@ -162,25 +162,31 @@ import kotlinx.serialization.encodeToString
             { id -> id?.let { methodLabel(it, draft, LocalLabelHebrew.current) } ?: tr("Choose when needed", "בחירה בעת הצורך") },
             { id -> draft = draft.copy(options = draft.options.copy(candleLightingNightfallId = id)) })
         Text(tr("Used for applicable holiday transitions after an already sacred day. Friday evenings still use your before-sunset offset.", "משמש במעברי חג המתאימים לאחר יום מקודש. בערבי שבת עדיין משמש המרווח שלפני השקיעה."))
+        if (draft.usesAteretTorah(s.data)) {
+        Text(tr("The Ateret Torah day ends this many fixed minutes after sunset. Its temporal hour, Shema, tefillah, Mincha and plag depend on this boundary. This is separate from candle lighting.", "יום עטרת תורה מסתיים במספר דקות קבועות זה אחרי השקיעה. השעה הזמנית, שמע, תפילה, מנחה ופלג תלויים בגבול זה. זו הגדרה נפרדת מהדלקת נרות."))
         Field(tr("Ateret Torah: minutes after sunset", "עטרת תורה: דקות אחרי השקיעה"), ateret, {
             ateret = it; draft = draft.copy(options = draft.options.copy(ateretTorahMinutes = it.toDoubleOrNull()))
         }, numeric = true)
+        }
+        HelpLink("profiles")
         Button(onClick = { model.act { if (model.repository.data.profile(initial.id) == null) model.repository.saveProfile(draft); choosing = true } }) { Text(tr("Choose calculations", "בחירת חישובים")) }
         Section(tr("Display order and reminders", "סדר תצוגה ותזכורות")) {
             Toggle(tr("Enable reminders for this profile", "הפעלת תזכורות לפרופיל זה"), draft.remindersEnabled, { draft = draft.copy(remindersEnabled = it) })
             draft.selected.forEachIndexed { index, id ->
                 Text(methodLabel(id, draft, LocalLabelHebrew.current), style = MaterialTheme.typography.titleSmall)
+                RenameZman(id, draft) { draft = it }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(enabled = index > 0, onClick = { val list = draft.selected.toMutableList(); list[index] = list[index - 1].also { list[index - 1] = list[index] }; draft = draft.copy(selected = list) }) { Text(tr("Move up", "הזזה למעלה")) }
                     TextButton(enabled = index < draft.selected.lastIndex, onClick = { val list = draft.selected.toMutableList(); list[index] = list[index + 1].also { list[index + 1] = list[index] }; draft = draft.copy(selected = list) }) { Text(tr("Move down", "הזזה למטה")) }
                     TextButton(onClick = { draft = draft.copy(selected = draft.selected - id) }) { Text(tr("Remove", "הסרה")) }
                 }
-                if (MethodCatalog.byId[id]?.isDuration != true) ReminderOffsets(draft.reminders.find { it.methodId == id }?.reminders.orEmpty()) { offsets ->
+                if (MethodCatalog.byId[id]?.isDuration != true) ReminderOffsets(draft.reminders.find { it.methodId == id }?.reminders.orEmpty(), allowAlarms = true) { offsets ->
                     draft = draft.copy(reminders = draft.reminders.filterNot { it.methodId == id } + ZmanReminder(id, offsets))
                 }
             }
         }
         Section(tr("Visible groups", "קבוצות מוצגות")) {
+            Text(tr("Hidden groups suppress their notifications and real alarms, including already scheduled reminders.", "קבוצות מוסתרות מבטלות התראות ושעונים מעוררים עבורן, כולל תזכורות שכבר תוזמנו."))
             zmanGroups.forEach { group -> Toggle(if (LocalHebrew.current) group.hebrew else group.english, group.id !in draft.hiddenGroups,
                 { visible -> draft = draft.copy(hiddenGroups = if (visible) draft.hiddenGroups - group.id else draft.hiddenGroups + group.id) }) }
         }
@@ -208,23 +214,44 @@ import kotlinx.serialization.encodeToString
         ConfirmDialog(tr("Delete ${z.name}?", "למחוק את ${z.name}?"),
             if (dependents.isEmpty()) tr("This also removes its selection and reminders.", "הבחירה והתזכורות של זמן זה יוסרו גם הן.") else tr("Used by: ", "משמש את: ") + dependents.joinToString() + tr(". Replace these dependencies before deleting.", ". יש להחליף את התלויות לפני המחיקה."),
             tr("Delete", "מחיקה"), { deleteFormula = null }) {
-            if (dependents.isEmpty()) draft = draft.copy(custom = draft.custom.filterNot { it.id == z.id }, selected = draft.selected - z.id, reminders = draft.reminders.filterNot { it.methodId == z.id })
+            if (dependents.isEmpty()) draft = draft.copy(custom = draft.custom.filterNot { it.id == z.id }, selected = draft.selected - z.id, displayNames = draft.displayNames - z.id, reminders = draft.reminders.filterNot { it.methodId == z.id })
             else error = "Replace dependent formulas and events before deleting this calculation."
             deleteFormula = null
         }
     }
 }
 
-@Composable fun ReminderOffsets(initial: List<ReminderRule>, onChange: (List<ReminderRule>) -> Unit) {
-    var text by rememberSaveable { mutableStateOf(initial.joinToString(", ") { it.minutesBefore.toString() }) }
-    var invalid by remember { mutableStateOf(false) }
-    Field(tr("Reminder minutes before (comma separated)", "דקות לפני לתזכורת (מופרדות בפסיק)"), text, { value ->
-        text = value
-        val values = value.split(',').map(String::trim).filter(String::isNotEmpty)
-        invalid = values.any { it.toIntOrNull() == null || (it.toIntOrNull() ?: -1) !in 0..525600 }
-        if (invalid) onChange(listOf(ReminderRule(minutesBefore = -1)))
-        else onChange(values.map(String::toInt).distinct().map { offset -> initial.find { it.minutesBefore == offset } ?: ReminderRule(minutesBefore = offset) })
-    }, hint = if (invalid) tr("Enter whole minutes from 0 to 525600.", "יש להזין דקות שלמות בין 0 ל־525600.") else tr("Leave empty for no reminders. 0 means at the exact time.", "ריק פירושו ללא תזכורות. 0 הוא הזמן המדויק."))
+@Composable fun RenameZman(id: String, profile: Profile, onChange: (Profile) -> Unit) {
+    var open by rememberSaveable(id) { mutableStateOf(false) }
+    var name by rememberSaveable(id, open) { mutableStateOf(profile.displayNames[id] ?: methodDisplayName(id, profile, false)) }
+    Row {
+        TextButton(onClick = { open = true }) { Text(tr("Rename", "שינוי שם")) }
+        if (id in profile.displayNames) TextButton(onClick = { onChange(profile.copy(displayNames = profile.displayNames - id)) }) { Text(tr("Reset name", "איפוס שם")) }
+    }
+    if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text(tr("Profile display name", "שם תצוגה לפרופיל")) }, text = {
+        Column { Field(tr("Name", "שם"), name, { name = it }); Text(MethodCatalog.byId[id]?.label ?: profile.custom.find { it.id == id }?.name.orEmpty()) }
+    }, confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onChange(profile.copy(displayNames = profile.displayNames + (id to name.trim()))); open = false }) { Text(tr("Save", "שמירה")) } },
+        dismissButton = { TextButton(onClick = { open = false }) { Text(tr("Cancel", "ביטול")) } })
+}
+
+@Composable fun ReminderOffsets(initial: List<ReminderRule>, allowAlarms: Boolean = false, onChange: (List<ReminderRule>) -> Unit) {
+    initial.forEach { rule ->
+        var minutes by rememberSaveable(rule.id, rule.minutesBefore) { mutableStateOf(rule.minutesBefore.toString()) }
+        Section(if (rule.minutesBefore == 0) tr("At the time", "בזמן המדויק") else tr("${rule.minutesBefore} minutes before", "${rule.minutesBefore} דקות לפני")) {
+            Toggle(tr("Enabled", "פעיל"), rule.enabled, { enabled -> onChange(initial.map { if (it.id == rule.id) it.copy(enabled = enabled) else it }) })
+            Field(tr("Minutes before (0 = at the time)", "דקות לפני (0 = בזמן המדויק)"), minutes, { value ->
+                minutes = value
+                onChange(initial.map { if (it.id == rule.id) it.copy(minutesBefore = value.toIntOrNull() ?: -1) else it })
+            }, numeric = true)
+            if (allowAlarms) Choice(tr("Delivery", "אופן התזכורת"), rule.mode, ReminderMode.entries,
+                { if (it == ReminderMode.ALARM) tr("Alarm · rings until dismissed", "שעון מעורר · מצלצל עד לעצירה") else tr("Notification", "התראה") },
+                { mode -> onChange(initial.map { if (it.id == rule.id) it.copy(mode = mode) else it }) })
+            if (allowAlarms && rule.mode == ReminderMode.ALARM) AlarmOptions(rule) { updated -> onChange(initial.map { if (it.id == rule.id) updated else it }) }
+            TextButton(onClick = { onChange(initial.filterNot { it.id == rule.id }) }) { Text(tr("Remove reminder", "הסרת תזכורת")) }
+        }
+    }
+    OutlinedButton(onClick = { onChange(initial + ReminderRule()) }) { Text(tr("Add reminder", "הוספת תזכורת")) }
+    if (initial.isEmpty()) Text(tr("No reminders configured. Permission alone does not create reminders.", "לא הוגדרו תזכורות. מתן הרשאה בלבד אינו יוצר תזכורות."), style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable private fun FormulaEditor(initial: CustomZman, profile: Profile, s: ScreenData, onSave: suspend (CustomZman) -> Unit, onDismiss: () -> Unit) {

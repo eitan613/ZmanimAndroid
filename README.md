@@ -38,10 +38,11 @@ application ID: `com.example.zmanim`.
 
 The calendar opens immediately without a setup dialog. New installations use
 English controls, Hebrew calendar/zman labels, a Hebrew month, Sunday first,
-and right-to-left calendar days. Existing saved preferences are preserved.
+and Automatic calendar direction (Hebrew RTL, Gregorian LTR). General display
+preferences are independent of profile selection.
 
 The bottom bar opens Gregorian month, Hebrew month, week, day, and zmanim views.
-The three-dot menu contains Today, Go to date, search, and Settings. In month view, swipe left/right to change months and up/down to change years.
+The three-dot menu contains Today, Go to date, search, Settings, app location, and bundled offline Help. In month view, swipe left/right to change months and up/down to change years.
 The swap setting exchanges these axes; accessible period actions are also available.
 Double-tap an empty hour in week/day view to create an event at that date/time.
 
@@ -60,9 +61,10 @@ holiday transitions, an explicitly selected nightfall method.
 
 Location offers a current-position snapshot, continuous following, offline city
 search, and saved places. Granting location permission continues the requested
-action. The first reliable active location initializes Israel/diaspora using its
-offline timezone (Asia/Jerusalem implies Israel); unknown location uses diaspora
-until initialization. The established setting stays fixed during travel and can
+action. Reviewed city metadata initializes Israel/diaspora separately from civil timezone
+and display country. GPS timezones alone never establish a holiday schedule;
+confirm an unknown schedule in Calendar settings. Ten reviewed locality
+corrections are recorded by stable GeoNames ID against CBS locality records. The established setting stays fixed during travel and can
 always be changed manually.
 
 Settings has Display, Calendar, Zmanim, Permissions, and Data tabs. Calendar
@@ -70,19 +72,48 @@ colors start with the PHP calendar palette, support category overrides, and can
 be reset. Permission status is separate from app feature switches; Android app
 permissions can be managed from Settings. Selective JSON backups include the
 new settings and profile options. Widgets remain independently configurable.
-An unselected widget location follows the active app location; an explicitly selected place stays independent. The Date
-widget starts at 2 × 1 launcher cells and shows a prominent date badge. The Daily
-overview starts at 3 × 2 cells and shows both dates, parsha, and Daf Yomi. Events
-and Zmanim widgets show their own scrolling lists; the next zman/countdown stays
-visible. Widget layouts and typography adapt to actual allocated space, with
-separate light/dark color palettes. Already placed widgets retain the launcher's
-allocated size and can be resized to use the smaller minimums.
+Every widget follows app location. Separate Hebrew and Gregorian date widgets
+support 1 × 1 and 2 × 1 layouts with optional configuration. The daily overview
+has selectable, ordered learning rows independent of zman profiles. All zmanim
+rows scroll together; each upcoming timed row can use a native countdown with
+seconds. App countdowns also show seconds beyond an hour. Widget layouts and
+colors follow actual allocated size and the selected theme.
+
+Learning tables are generated offline from pinned Hebcal 6.13.1 and cover
+2020–2040; Dirshu Halacha's finite third-cycle table ends 31 August 2027.
+Separate Oz V’hadar tables reproduce the published cycle 11–12 references from
+Kollel Iyun Hadaf, covering 14 November 2022 through 2 May 2034.
+Oraysa includes the official Yevamot calendar and reviews, 23 November 2025
+through 7 November 2026; later dates explicitly show Unavailable.
+Only identified schedules are exposed, with explicit unavailable/no-learning
+states. Five unidentified programs were excluded at the user's request. The
+remaining source-validation backlog is tracked in `docs/new-problems.md`.
 
 The Hebrew-date notification uses Hebrew letters in both its status icon and
 expanded date, independently of the calendar-label preference.
-Precise reminders require Android access; approximate delivery requires opt-in.
+Use row bells or Active profile reminders to configure reminders without events.
+A reminder may deliver a notification or a genuine ringing alarm with selected
+sound, vibration, snooze and dismiss. Hidden groups suppress both. Real alarms
+require precise access and an enabled alarm channel; approximate notification
+delivery requires explicit opt-in. Android full-screen access is optional.
 
-See [the problem resolution checklist](docs/problem-resolution.md) for the
+Profiles support independent display-name overrides. Their duplication remaps
+custom references and names. Backups use current format version 2 and preserve
+the new models; imports never silently activate reminders. Obsolete test backup
+formats are not supported.
+
+Events use Gregorian/Hebrew grid pickers and a 12/24-hour time picker. Repeat has
+its own calendar; non-repeating Hebrew dates retain their day semantics. Clock
+changes resolve local start/end intervals automatically. Provider events open
+in-app details at their exact instance; converting an editable provider event to
+an app-managed rule adopts its provider record to avoid duplicate exports.
+
+Optional Look up elevation uses cached Open Topo Data SRTM90m terrain height.
+Manual entry and calculation remain offline. Explicit adjusted sunrise/sunset use
+supported location height independently of the profile toggle. Source and library
+notices, full license texts and dataset metadata live under Help → About.
+
+See [the current implementation checklist](docs/new-problems.md) for the
 mapping from the original feedback to implementation and validation.
 
 ## Development helpers and data
@@ -99,6 +130,14 @@ Kotlin and offline data are committed, so ordinary Gradle builds do not run them
   assets. Dataset provenance and licenses are recorded in
   `app/src/main/assets/place-data.json` and `NOTICE.txt`. Timezone points are
   memory-mapped from a generated cache instead of loaded into the Java heap.
+- `review_localities.py` records the stable-ID review against CBS coordinates;
+  `docs/locality-audit.csv` retains every reviewed candidate and the decision.
+- `prepare_learning.mjs` uses the pinned `learning-package.json` and lockfile to
+  generate offline reference tables. Supplemental source snapshots are retained
+  as factual TSV references and hashed provider metadata. To refresh them, run
+  `prepare_learning_supplements.py` with the two downloaded Oz V’hadar calendars,
+  then `prepare_oraysa.py` with the official Oraysa PDF, then the Node generator.
+  Both supplement scripts validate source coverage and pagination before writing.
 
 Keep `.gzip` suffixes: Android's asset merger automatically unpacks `.gz` files
 and changes their asset names. Room schemas are committed under `app/schemas`;

@@ -134,20 +134,7 @@ val LocalProductLocale = staticCompositionLocalOf { java.util.Locale.ENGLISH }
         else -> en
     }
 }
-fun methodLabel(id: String, profile: Profile?, hebrew: Boolean): String {
-    profile?.custom?.find { it.id == id }?.let { return if (hebrew && it.hebrewName.isNotBlank()) it.hebrewName else it.name }
-    val method = MethodCatalog.byId[id] ?: return "Missing calculation"
-    var label = method.label.substringBefore(" · Day:").replace(" (profile elevation policy)", "")
-        .replace("Sun Transit", "Chatzos · solar noon")
-    if (!hebrew) return label
-    val replacements = linkedMapOf("Morning (six temporal hours):" to "בוקר (שש שעות זמניות):", "Afternoon (six temporal hours):" to "אחר הצהריים (שש שעות זמניות):", "Astronomical solar transit" to "חצות שמש אסטרונומי", "Midpoint of sunrise and sunset" to "אמצע הזמן בין זריחה לשקיעה", "Latest Shema" to "סוף זמן קריאת שמע", "Latest teffilah" to "סוף זמן תפילה", "Temporal hour" to "שעה זמנית",
-        "Earliest Mincha" to "מנחה גדולה", "Mincha ketanah" to "מנחה קטנה", "Dawn" to "עלות השחר", "Nightfall" to "צאת הכוכבים", "Misheyakir" to "משיכיר",
-        "Sunrise" to "הנץ החמה", "Sunset" to "שקיעה", "Midday" to "חצות היום", "Midnight" to "חצות הלילה", "Plag" to "פלג", "Twilight" to "בין השמשות",
-        "Candle Lighting" to "הדלקת נרות", "Chametz eating deadline" to "סוף זמן אכילת חמץ", "Chametz disposal deadline" to "סוף זמן ביעור חמץ", "Earliest Kiddush Levanah" to "תחילת זמן קידוש לבנה", "Latest Kiddush Levanah" to "סוף זמן קידוש לבנה", "Molad" to "מולד", "Day:" to "יום:", "profile elevation policy" to "לפי הגדרת הגובה בפרופיל", "Sea Level" to "גובה פני הים", "Fixed local" to "מקומי קבוע", "Solar Midnight" to "חצות שמש", "Chatzos · solar noon" to "חצות · חצות שמש", "Vilna Gaon" to "הגר״א", "Magen Avraham" to "מגן אברהם", "Baal HaTanya" to "בעל התניא", "sea level" to "גובה פני הים",
-        "below horizon" to "מתחת לאופק", "temporal minutes" to "דקות זמניות", "minutes" to "דקות", "hours" to "שעות", "Morning" to "בוקר", "Evening" to "ערב")
-    replacements.forEach { (a, b) -> label = label.replace(a, b) }
-    return label
-}
+fun methodLabel(id: String, profile: Profile?, hebrew: Boolean): String = bidiZmanLabel(methodDisplayName(id, profile, hebrew))
 
 @Composable fun AppHeader(title: String, subtitle: String? = null, actions: List<Pair<String, () -> Unit>> = emptyList(), onBack: (() -> Unit)? = null) {
     var expanded by remember { mutableStateOf(false) }

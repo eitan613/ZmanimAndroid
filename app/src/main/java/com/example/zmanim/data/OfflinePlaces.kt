@@ -1,7 +1,7 @@
 package com.example.zmanim.data
 
 import android.content.Context
-import com.example.zmanim.domain.Place
+import com.example.zmanim.domain.*
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.MappedByteBuffer
@@ -14,21 +14,50 @@ class OfflinePlaces(private val context: Context) {
     data class City(val id: String, val name: String, val country: String, val latitude: Double,
         val longitude: Double, val zone: String, val elevation: Double?, val aliases: String) {
         fun place() = Place(name = "$name, $country", latitude = latitude, longitude = longitude,
-            zoneId = zone, elevation = elevation, elevationSource = if (elevation != null) "GeoNames city elevation; confirm before use" else null)
+            zoneId = zone, elevation = elevation, localityId = id, displayCountry = country, holidayInIsrael = when (country) { "IL" -> true; "PS" -> false; else -> false }, elevationSource = if (elevation != null) "GeoNames city elevation; confirm before use" else null)
+    }
+    private val corrections by lazy {
+        appJson.parseToJsonElement(context.assets.open("locality-corrections.json").bufferedReader().use { it.readText() }).jsonObject
+    }
+    private fun corrected(city: City): City {
+        // GeoNames erroneously assigns Betar Illit's Hebrew alias to nearby Battir.
+        val cleaned = if (city.id == "284375") city.copy(aliases = normalizeCityQuery("Battir,בתיר")) else city
+        val correction = corrections[city.id]?.jsonObject ?: return cleaned
+        if (kotlin.math.abs(city.latitude - correction.getValue("sourceLatitude").jsonPrimitive.double) > 0.03 ||
+            kotlin.math.abs(city.longitude - correction.getValue("sourceLongitude").jsonPrimitive.double) > 0.03) return cleaned
+        return cleaned.copy(country = correction.getValue("country").jsonPrimitive.content,
+            zone = correction.getValue("zone").jsonPrimitive.content,
+            aliases = cleaned.aliases + "," + normalizeCityQuery(correction.getValue("aliases").jsonPrimitive.content))
     }
     private val cities: List<City> by lazy {
         GZIPInputStream(context.assets.open("cities.tsv.gzip")).bufferedReader().useLines { lines ->
             lines.mapNotNull { line ->
                 val f = line.split('\t')
-                if (f.size < 8) null else City(f[0], f[1], f[2], f[3].toDouble(), f[4].toDouble(), f[5], f[6].toDoubleOrNull(), f[7].lowercase(Locale.ROOT))
+                if (f.size < 8) null else City(f[0], f[1], f[2], f[3].toDouble(), f[4].toDouble(), f[5], f[6].toDoubleOrNull(), normalizeCityQuery(f[7])).let(::corrected)
             }.toList()
         }
     }
+    private data class IndexedCity(val city: City, val names: List<String>, val loose: List<String>)
+    private val searchIndex by lazy {
+        cities.map { city ->
+            val names = (city.aliases.split(',') + normalizeCityQuery(city.name)).filter { it.isNotBlank() }.distinct()
+            IndexedCity(city, names, names.map(::looseCityQuery))
+        }
+    }
     fun search(query: String, limit: Int = 30): List<City> {
-        val q = query.trim().lowercase(Locale.ROOT)
+        val q = normalizeCityQuery(query)
         if (q.length < 2) return emptyList()
-        return cities.asSequence().filter { it.aliases.contains(q) || it.name.contains(q, true) }
-            .sortedBy { if (it.name.startsWith(q, true)) 0 else 1 }.take(limit).toList()
+        val loose = looseCityQuery(q)
+        return searchIndex.asSequence().mapNotNull { entry ->
+            val rank = when {
+                q in entry.names -> 0
+                entry.names.any { it.startsWith(q) } -> 1
+                entry.loose.any { it == loose || it.startsWith(loose) } -> 2
+                entry.names.any { it.contains(q) } || entry.loose.any { it.contains(loose) } -> 3
+                else -> return@mapNotNull null
+            }
+            entry.city to rank
+        }.sortedWith(compareBy({ it.second }, { it.first.name }, { it.first.country })).take(limit).map { it.first }.toList()
     }
     private data class Ring(val offset: Long, val count: Int)
     private data class Polygon(val zone: String, val bounds: List<Double>, val rings: List<Ring>)

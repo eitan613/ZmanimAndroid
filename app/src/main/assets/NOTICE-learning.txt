@@ -1,0 +1,40 @@
+Oz V’hadar factual daily references
+Source: Kollel Iyun Hadaf / dafyomi.co.il, published cycles 11 and 12:
+https://www.dafyomi.co.il/calendars/calendaryeruoz11heb-cycle.htm
+https://www.dafyomi.co.il/calendars/calendaryeruoz12heb-cycle.htm
+Snapshot: 2026-11-04. Source hashes and coverage are in learning-metadata.json.
+Only dates, tractate names and page references are included; no page images or
+book text. This pagination is independent of the Vilna provider.
+
+Oraysa factual daily and review references
+Source: Oraysa's official Yevamot calendar, including bordering tractate readings:
+https://dev.oraysa.org/_files/ugd/4323da_75e996c05d904bfca2643c55d3a1e82b.pdf
+Coverage: 2025-11-23 through 2026-11-07; snapshot 2026-11-04.
+All 250 weekday readings validated against the published PDF. Weekend reviews
+follow the printed Sunday/Monday and Tuesday–Thursday split. Only factual
+references are packaged; no book text, commentary, page images or calendar design.
+
+Hebcal learning schedules — BSD 2-Clause License
+
+Copyright (c) 2026, hebcal
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

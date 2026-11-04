@@ -60,8 +60,7 @@ class ZmanimScreenTest {
         compose.onNodeWithText("Today", substring = false).performClick()
         compose.onNodeWithTag("overflowMenu").performClick()
         compose.onNode(hasText("Go to date", substring = false) and hasClickAction()).performClick()
-        compose.onNodeWithText("Date (YYYY-MM-DD)").performTextReplacement("2026-09-12")
-        compose.onNode(hasText("Go to date", substring = false) and hasClickAction()).performClick()
+        choosePickerDate("2026-09-12")
         compose.onNodeWithText("Hebrew", substring = false).performClick()
         compose.onNodeWithText("Zmanim", substring = false).performClick()
         compose.onNodeWithText("Gregorian", substring = false).performClick()
@@ -87,8 +86,7 @@ class ZmanimScreenTest {
     @Test fun weekFitsSevenDaysAndDoubleTapPrefillsDateAndTime() {
         compose.onNodeWithTag("overflowMenu").performClick()
         compose.onNodeWithText("Go to date").performClick()
-        compose.onNodeWithText("Date (YYYY-MM-DD)").performTextReplacement("2026-11-02")
-        compose.onNode(hasText("Go to date") and hasClickAction()).performClick()
+        choosePickerDate("2026-11-02")
         compose.onNodeWithText("Week").performClick()
         compose.waitUntil(10000) { compose.onAllNodesWithTag("hourSchedule").fetchSemanticsNodes().isNotEmpty() }
         val header = compose.onNodeWithTag("hourSchedule").fetchSemanticsNode().boundsInRoot
@@ -99,7 +97,7 @@ class ZmanimScreenTest {
         }
         compose.onNodeWithTag("calendarList").performScrollToNode(hasTestTag("slot:2026-11-02:10"))
         compose.onNodeWithTag("slot:2026-11-02:10").performTouchInput { doubleClick() }
-        compose.onNodeWithText("Time (HH:MM, 24-hour input)").assertTextContains("10:00")
+        compose.onNodeWithText("10:00 AM").assertExists()
         compose.onNodeWithText("Title", substring = false).performTextInput("Tapped hour")
         compose.onNodeWithText("Save").performClick()
         compose.waitUntil(10000) { (compose.activity.application as ZmanimApplication).repository.data.events.any { it.title == "Tapped hour" } }
@@ -164,7 +162,7 @@ class ZmanimScreenTest {
         compose.onNodeWithText("Zmanim", substring = false).performClick()
         compose.onNodeWithTag("overflowMenu").performClick()
         compose.onNodeWithTag("menu:Location").performClick()
-        compose.onNodeWithText("Use current location", substring = false).performClick()
+        compose.onNodeWithText("Use current location snapshot", substring = false).performClick()
         if (!app.location.hasAccess()) {
             val automation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
             compose.waitUntil(10000) {
@@ -182,6 +180,17 @@ class ZmanimScreenTest {
         org.junit.Assert.assertEquals(current.devicePlace!!.latitude, current.place()!!.latitude, 0.0)
         org.junit.Assert.assertEquals(current.devicePlace!!.longitude, current.place()!!.longitude, 0.0)
         org.junit.Assert.assertNotEquals(current.devicePlace!!.id, current.place()!!.id)
+        val model = androidx.lifecycle.ViewModelProvider(compose.activity)[com.example.zmanim.ui.AppViewModel::class.java]
+        compose.waitUntil(5000) { !model.locationBusy.value }
+        org.junit.Assert.assertTrue(model.useDeviceLocation(false))
+        compose.waitUntil(10000) { !model.locationBusy.value }
+        org.junit.Assert.assertEquals(1, app.repository.data.places.count { it.id == com.example.zmanim.data.AppRepository.SNAPSHOT_ID })
+        org.junit.Assert.assertTrue(app.repository.data.places.any { it.id == "test-place" })
+        org.junit.Assert.assertTrue(model.useDeviceLocation(true))
+        compose.waitUntil(10000) { app.repository.data.settings.location.mode == LocationMode.FOLLOW }
+        model.stopFollowing()
+        compose.waitUntil(10000) { app.repository.data.settings.location.mode == LocationMode.SAVED }
+        org.junit.Assert.assertEquals(1, app.repository.data.places.count { it.id == com.example.zmanim.data.AppRepository.SNAPSHOT_ID })
     }
 
     @Test fun goToDateInZmanimShowsTheRequestedDay() {
@@ -190,8 +199,7 @@ class ZmanimScreenTest {
         compose.onNode(hasText("Zmanim", substring = false) and hasClickAction()).performClick()
         compose.onNodeWithTag("overflowMenu").performClick()
         compose.onNodeWithTag("menu:Go to date").performClick()
-        compose.onNodeWithText("Date (YYYY-MM-DD)").performTextReplacement("2027-01-03")
-        compose.onNode(hasText("Go to date", substring = false) and hasClickAction()).performClick()
+        choosePickerDate("2027-01-03")
         compose.waitUntil(10000) { compose.onAllNodesWithTag("dayHeader:2027-01-03").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("dayHeader:2027-01-03").assertIsDisplayed()
     }
@@ -202,14 +210,27 @@ class ZmanimScreenTest {
         compose.onNode(hasText("Zmanim", substring = false) and hasClickAction()).performClick()
         compose.onNodeWithTag("overflowMenu").performClick()
         compose.onNodeWithTag("menu:Go to date").performClick()
-        compose.onNodeWithText("Date (YYYY-MM-DD)").performTextReplacement("2026-11-06")
-        compose.onNode(hasText("Go to date", substring = false) and hasClickAction()).performClick()
+        choosePickerDate("2026-11-06")
         compose.waitUntil(10000) { compose.onAllNodesWithTag("dayHeader:2026-11-06").fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithText("Candle Lighting", substring = false).onFirst().performClick()
         compose.onNodeWithText("Calculation details").performClick()
         compose.onNodeWithText("40.0 minutes before sea-level sunset").assertIsDisplayed()
         compose.onAllNodesWithText("Astronomical midday: true").assertCountEquals(0)
         compose.onAllNodesWithText("Half-day temporal hours where supported: false").assertCountEquals(0)
+    }
+
+    private fun choosePickerDate(iso: String) {
+        val target = java.time.LocalDate.parse(iso)
+        val app = compose.activity.application as ZmanimApplication
+        val model = androidx.lifecycle.ViewModelProvider(compose.activity)[com.example.zmanim.ui.AppViewModel::class.java]
+        val initial = model.screen.value!!.date
+        compose.onNodeWithTag("pickerCalendar:GREGORIAN").performClick()
+        val years = target.year - initial.year
+        repeat(kotlin.math.abs(years)) { compose.onNodeWithText(if (years > 0) "+ Year" else "− Year").performScrollTo().performClick() }
+        val months = target.monthValue - initial.monthValue
+        repeat(kotlin.math.abs(months)) { compose.onNodeWithText(if (months > 0) "+ Month" else "− Month").performScrollTo().performClick() }
+        compose.onNodeWithTag("pickerDay:$iso").performScrollTo().performClick()
+        compose.onNode(hasText("Choose date") and hasClickAction()).performClick()
     }
 
 }

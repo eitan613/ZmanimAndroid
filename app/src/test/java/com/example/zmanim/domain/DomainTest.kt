@@ -94,13 +94,16 @@ class DomainTest {
         assertEquals(engine.seaLevelSunset(LocalDate.of(2026, 10, 31), place), result.start)
         assertEquals(engine.seaLevelSunset(LocalDate.of(2026, 11, 1), place), result.end)
     }
-    @Test fun dstGapAndOverlapPoliciesAreExplicit() {
-        val e = event("2026-03-08").copy(zoneId = "America/New_York", localTime = "02:30", gapPolicy = DstGapPolicy.SKIP)
-        assertNull(occurrences.occurrence(e, LocalDate.parse(e.anchorDate), data).start)
+    @Test fun clockChangeIntervalsUseActualLocalSegments() {
+        val e = event("2026-03-08").copy(zoneId = "America/New_York", localTime = "02:30", durationMinutes = 15)
+        assertTrue(occurrences.expand(e, LocalDate.parse(e.anchorDate), LocalDate.parse(e.anchorDate).plusDays(1), data).isEmpty())
+        val partial = e.copy(durationMinutes = 60)
+        assertEquals(Instant.parse("2026-03-08T07:00:00Z"), occurrences.occurrence(partial, LocalDate.parse(e.anchorDate), data).start)
+        assertEquals(Instant.parse("2026-03-08T07:30:00Z"), occurrences.occurrence(partial, LocalDate.parse(e.anchorDate), data).end)
         val overlap = e.copy(anchorDate = "2026-11-01", localTime = "01:30")
-        val earlier = occurrences.occurrence(overlap, LocalDate.parse(overlap.anchorDate), data).start!!
-        val later = occurrences.occurrence(overlap.copy(overlapPolicy = DstOverlapPolicy.LATER), LocalDate.parse(overlap.anchorDate), data).start!!
-        assertEquals(Duration.ofHours(1), Duration.between(earlier, later))
+        val segments = occurrences.expand(overlap, LocalDate.parse(overlap.anchorDate), LocalDate.parse(overlap.anchorDate).plusDays(1), data)
+        assertEquals(2, segments.size)
+        assertEquals(Duration.ofHours(1), Duration.between(segments[0].start, segments[1].start))
     }
     @Test fun roundingIsPresentationOnlyAndMarksItsDirection() {
         val instant = Instant.parse("2026-11-01T08:00:40Z")

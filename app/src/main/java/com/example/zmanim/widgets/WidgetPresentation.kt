@@ -24,7 +24,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
-    place(if (config.location == LocationBinding()) settings.location else config.location)
+    place()
 
 @Composable internal fun WidgetContent(kind: WidgetKind, config: WidgetConfig, data: AppData, place: Place?,
     now: Instant, rows: List<WidgetLine>, openCalendar: Intent, openZmanim: Intent, context: Context) {
@@ -47,7 +47,8 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
     val today = LocalDate.now(place?.zone() ?: ZoneId.systemDefault())
     val (hebrewDate, dateError) = if (kind in setOf(WidgetKind.DATE, WidgetKind.COMBINED))
         CalendarEngine().currentHebrewDate(now, place, config.sunsetRollover) else null to null
-    val root = GlanceModifier.fillMaxSize().appWidgetBackground().background(ImageProvider(background)).padding(if (size.height < 90.dp) 10.dp else 14.dp)
+    val padding = if (kind == WidgetKind.DATE) { if (size.height < 80.dp) 6.dp else if (size.height < 120.dp) 8.dp else 12.dp } else if (size.height < 90.dp) 10.dp else 14.dp
+    val root = GlanceModifier.fillMaxSize().appWidgetBackground().background(ImageProvider(background)).padding(padding)
     if (kind == WidgetKind.DATE) {
         val date = if (config.calendar == CalendarSystem.HEBREW) hebrewDate else today
         val jewish = date?.let { com.kosherjava.zmanim.hebrewcalendar.JewishDate(it) }
@@ -55,34 +56,48 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
         val day = date?.let { if (config.calendar == CalendarSystem.HEBREW) CalendarEngine().formatter(true).formatHebrewNumber(jewish!!.jewishDayOfMonth).replace("׳", "").replace("״", "") else it.dayOfMonth.toString() } ?: "—"
         val month = if (date == null) text("Choose location", "בחירת מקום") else if (config.calendar == CalendarSystem.HEBREW)
             "${formatter.formatMonth(jewish!!)} ${if (data.settings.labels == LabelLanguage.HEBREW) formatter.formatHebrewNumber(jewish.jewishYear) else jewish.jewishYear}" else date.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale))
-        val tiny = size.width < 150.dp && size.height < 90.dp
-        val monthTitle = if (tiny && date != null) {
-            if (config.calendar == CalendarSystem.HEBREW) formatter.formatMonth(jewish!!) else date.format(DateTimeFormatter.ofPattern("MMMM", locale))
-        } else month
-        val dateSubtitle = if (tiny && date != null) {
-            if (config.calendar == CalendarSystem.HEBREW) {
-                if (data.settings.labels == LabelLanguage.HEBREW) formatter.formatHebrewNumber(jewish!!.jewishYear) else jewish!!.jewishYear.toString()
-            } else date.year.toString()
-        } else today.format(DateTimeFormatter.ofPattern(if (size.width >= 200.dp) "EEEE · d MMM" else "EEE · d/M", locale))
-        val tall = size.width < 170.dp && size.height >= 110.dp
+        val compact = size.width < 150.dp
         val onDate = Color(0xFFF7FCFC)
         val dateMuted = Color(0xFFCAE3E2)
-        Column(root.clickable(actionStartActivity(openCalendar)), verticalAlignment = Alignment.CenterVertically,
-            horizontalAlignment = if (tall) Alignment.CenterHorizontally else Alignment.Start) {
-            if (tall) {
-                Text(today.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, locale), style = TextStyle(color = ColorProvider(dateMuted), fontSize = 12.sp), maxLines = 1)
-                Text(day, style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = (size.height.value * 0.32f).coerceIn(36f, 64f).sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                Text(month, style = TextStyle(color = ColorProvider(onDate), fontSize = 14.sp, textAlign = TextAlign.Center), maxLines = 2)
-                if (size.height >= 170.dp) Text(today.format(DateTimeFormatter.ofPattern("d MMM", locale)), style = TextStyle(color = ColorProvider(dateMuted), fontSize = 12.sp), maxLines = 1)
+        val weekday = weekdayLabel(today.dayOfWeek, data.settings.labels == LabelLanguage.HEBREW, locale)
+        val secondary = if (config.calendar == CalendarSystem.HEBREW) today.format(DateTimeFormatter.ofPattern("dd/MM", locale))
+            else hebrewDate?.let { CalendarEngine().dateLabel(it, data.settings.labels == LabelLanguage.HEBREW) } ?: text("Set app location", "הגדרת מיקום האפליקציה")
+        val open = if (place == null && (config.calendar == CalendarSystem.HEBREW || config.sunsetRollover))
+            Intent(openCalendar).putExtra("destination", "location") else if (config.openingView == OpeningView.ZMANIM) openZmanim else openCalendar
+        val fontScale = context.resources.configuration.fontScale.coerceAtLeast(1f)
+        val short = size.height.value / fontScale < 100f
+        if (short) {
+            val dayWidth = (size.width.value * 0.40f).coerceAtMost(64f)
+            val baseDayFont = 32f / fontScale
+            val dayPaint = android.text.TextPaint().apply {
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                textSize = baseDayFont * context.resources.displayMetrics.scaledDensity
+            }
+            val dayFont = baseDayFont * ((dayWidth - 2f) * context.resources.displayMetrics.density / dayPaint.measureText(day).coerceAtLeast(1f)).coerceAtMost(1f)
+            // A short launcher cell has room for columns, not three stacked date lines.
+            Row(root.clickable(actionStartActivity(open)), verticalAlignment = Alignment.CenterVertically) {
+                Text(day, modifier = GlanceModifier.width(dayWidth.dp),
+                    style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = dayFont.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+                Column(GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(weekday, style = TextStyle(color = ColorProvider(dateMuted), fontSize = (9f / fontScale).sp), maxLines = 1)
+                    val shortMonth = if (date != null && config.calendar == CalendarSystem.GREGORIAN) date.format(DateTimeFormatter.ofPattern("MMM yyyy", locale)) else month
+                    Text(shortMonth, style = TextStyle(color = ColorProvider(onDate), fontSize = ((if (compact) 8f else 11f) / fontScale).sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    Text(secondary, style = TextStyle(color = ColorProvider(dateMuted), fontSize = (9f / fontScale).sp), maxLines = 1)
+                }
+            }
+        } else Column(root.clickable(actionStartActivity(open)), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(weekday + if (!compact && config.calendar == CalendarSystem.HEBREW) " · ${today.year}" else "", style = TextStyle(color = ColorProvider(dateMuted), fontSize = 11.sp), maxLines = 1)
+            if (compact) {
+                Text(day, style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = if (size.height < 140.dp) 32.sp else 40.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                Text(month, style = TextStyle(color = ColorProvider(onDate), fontSize = 11.sp, textAlign = TextAlign.Center), maxLines = 2)
+                Text(secondary, style = TextStyle(color = ColorProvider(dateMuted), fontSize = 9.sp), maxLines = 1)
             } else Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(GlanceModifier.defaultWeight()) {
-                    Text(monthTitle, style = TextStyle(color = ColorProvider(onDate), fontSize = if (size.width >= 220.dp) 17.sp else 12.sp, fontWeight = FontWeight.Bold), maxLines = if (size.height < 70.dp) 1 else 2)
-                    Text(dateSubtitle, style = TextStyle(color = ColorProvider(dateMuted), fontSize = 11.sp), maxLines = 1)
+                    Text(month, style = TextStyle(color = ColorProvider(onDate), fontSize = if (size.width >= 220.dp) 16.sp else 12.sp, fontWeight = FontWeight.Bold), maxLines = 2)
+                    Text(secondary, style = TextStyle(color = ColorProvider(dateMuted), fontSize = 11.sp), maxLines = 2)
                 }
-                Text(day, modifier = GlanceModifier.width(if (size.width < 160.dp) 40.dp else 60.dp),
-                    style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = if (size.height >= 100.dp) 48.sp else if (size.height < 70.dp) 28.sp else 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+                Text(day, modifier = GlanceModifier.width(60.dp), style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = 46.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
             }
-            if (date == null && size.height >= 110.dp) Text(text("Set a location for the sunset date", "יש לבחור מקום לתאריך לפי שקיעה"), style = TextStyle(color = ColorProvider(dateMuted), fontSize = 10.sp), maxLines = 2)
         }
     } else if (kind == WidgetKind.COMBINED) {
         val compact = size.height < 140.dp
@@ -91,22 +106,16 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
                 ?: text("Choose location for Hebrew date", "בחירת מקום לתאריך העברי"), style = TextStyle(color = ColorProvider(ink), fontSize = if (compact) 16.sp else if (size.width >= 260.dp) 25.sp else 20.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             Text(today.format(DateTimeFormatter.ofPattern(if (compact) "EEE · d MMM yyyy" else "EEEE · d MMM yyyy", locale)), style = TextStyle(color = ColorProvider(muted), fontSize = if (compact) 10.sp else 12.sp), maxLines = 1)
             Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
-            val calendarDate = hebrewDate ?: today
-            val parsha = CalendarEngine().upcomingParsha(calendarDate, data.settings)
-            val daf = CalendarEngine().daf(calendarDate, data.settings.labels == LabelLanguage.HEBREW)
-            val card = if (dark) R.drawable.widget_info_card_dark else R.drawable.widget_info_card
-            Row(GlanceModifier.fillMaxWidth().defaultWeight()) {
-                @Composable fun Info(label: String, value: String, color: Color) {
-                    Column(GlanceModifier.fillMaxSize().background(ImageProvider(card)).padding(if (compact) 5.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(label, style = TextStyle(color = ColorProvider(color), fontSize = if (compact) 9.sp else 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                        Text(value.ifBlank { "—" }, style = TextStyle(color = ColorProvider(ink), fontSize = if (compact) 12.sp else if (size.height >= 200.dp) 19.sp else 15.sp, fontWeight = FontWeight.Bold), maxLines = if (compact) 1 else 2)
+            if (rows.isEmpty()) Text(text("Choose learning rows in widget settings", "בחירת שורות לימוד בהגדרות היישומון"), style = TextStyle(color = ColorProvider(muted), fontSize = 12.sp))
+            LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
+                items(rows) { row ->
+                    Column(GlanceModifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Text(row.title, style = TextStyle(color = ColorProvider(accent), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                        Text(row.subtitle, style = TextStyle(color = ColorProvider(ink), fontSize = if (compact) 12.sp else 15.sp), maxLines = 2)
                     }
                 }
-                Box(GlanceModifier.defaultWeight().fillMaxHeight()) { Info(text("PARSHA", "פרשה"), parsha, if (dark) Color(0xFFF8D996) else Color(0xFF936C20)) }
-                Spacer(GlanceModifier.width(6.dp))
-                Box(GlanceModifier.defaultWeight().fillMaxHeight()) { Info(text("DAF YOMI", "דף יומי"), daf, accent) }
             }
-            if (dateError != null && !compact) Text(text("Set the widget location for sunset updates", "יש לבחור מקום ליישומון לעדכון בשקיעה"), style = TextStyle(color = ColorProvider(muted), fontSize = 10.sp), maxLines = 1)
+            if (dateError != null && !compact) Text(text("Set app location for sunset updates", "יש לבחור מיקום לאפליקציה לעדכון בשקיעה"), style = TextStyle(color = ColorProvider(muted), fontSize = 10.sp), maxLines = 1)
         }
     } else {
         Column(root) {
@@ -125,10 +134,10 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
                 val card = if (kind == WidgetKind.EVENTS) { if (dark) R.drawable.widget_event_card_dark else R.drawable.widget_event_card }
                     else if (dark) R.drawable.widget_zman_card_dark else R.drawable.widget_zman_card
                 Column(GlanceModifier.fillMaxWidth().padding(vertical = 3.dp).background(ImageProvider(card)).padding(horizontal = 10.dp, vertical = if (compactList) 4.dp else 7.dp).clickable(actionStartActivity(row.intent))) {
-                    Text(row.title, style = TextStyle(color = ColorProvider(ink), fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    Text((if (first && kind == WidgetKind.ZMANIM) "▶ " else "") + row.title, style = TextStyle(color = ColorProvider(ink), fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         textAlign = if (kind == WidgetKind.ZMANIM && data.settings.labels == LabelLanguage.HEBREW) TextAlign.End else TextAlign.Start), maxLines = if (compactList) 1 else 2)
                     Text("\u2066${row.subtitle}\u2069", style = TextStyle(color = ColorProvider(accent), fontSize = if (first && kind == WidgetKind.ZMANIM && !compactList) 17.sp else 12.sp, fontWeight = if (first) FontWeight.Bold else FontWeight.Normal), maxLines = 1)
-                    if (first && config.countdown && row.targetMillis != null && size.height >= 160.dp) AndroidRemoteViews(RemoteViews(context.packageName, R.layout.widget_countdown).apply {
+                    if (config.countdown && row.targetMillis != null && row.targetMillis > now.toEpochMilli()) AndroidRemoteViews(RemoteViews(context.packageName, R.layout.widget_countdown).apply {
                         setChronometer(R.id.widget_countdown, android.os.SystemClock.elapsedRealtime() + row.targetMillis - System.currentTimeMillis(), null, true)
                         setChronometerCountDown(R.id.widget_countdown, true); setTextColor(R.id.widget_countdown, accent.toArgb())
                     })
@@ -136,16 +145,9 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
             }
             val rowHeight = (if (compactList) 48f else if (config.countdown && kind == WidgetKind.ZMANIM) 70f else 60f) * context.resources.configuration.fontScale.coerceAtLeast(1f)
             val maxRows = ((size.height.value - 65f) / rowHeight).toInt().coerceIn(1, 5)
-            if (kind == WidgetKind.ZMANIM && rows.isNotEmpty()) {
-                // Keep the next zman and its native countdown visible while later rows scroll.
-                Line(rows.first(), true)
-                val later = rows.drop(1)
-                if (later.isNotEmpty() && size.height >= 160.dp) {
-                    if (later.size > (maxRows - 1).coerceAtLeast(0)) LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) { items(later) { row -> Line(row, false) } }
-                    else later.forEach { Line(it, false) }
-                }
-            } else if (rows.size > maxRows) LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) { items(rows) { row -> Line(row, row == rows.firstOrNull()) } }
-            else rows.forEachIndexed { index, row -> Line(row, index == 0) }
+            if (rows.size > maxRows || kind == WidgetKind.ZMANIM && rows.isNotEmpty()) LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
+                items(rows) { row -> Line(row, row == rows.firstOrNull()) }
+            } else rows.forEachIndexed { index, row -> Line(row, index == 0) }
             if (kind == WidgetKind.ZMANIM && size.height >= 160.dp) Text((place?.name?.let { "$it · " } ?: "") +
                 text("Updated ", "עודכן ") + now.atZone(place?.zone() ?: ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm")),
                 style = TextStyle(color = ColorProvider(muted), fontSize = 10.sp), maxLines = 1)

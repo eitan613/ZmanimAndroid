@@ -38,6 +38,10 @@ import kotlinx.coroutines.withContext
         }
         key(tab) {
             LazyColumn(Modifier.testTag("settingsList").fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (tab == 0 || tab == 1) item {
+                    OutlinedButton(onClick = onLocations, modifier = Modifier.fillMaxWidth()) { Text(tr("App location", "מיקום האפליקציה") + " · " + (s.data.place()?.name ?: tr("Choose a location", "בחירת מקום"))) }
+                    if (!settings.scheduleInitialized) Notice(tr("Confirm Israel or Diaspora under Calendar. GPS timezones do not establish a holiday schedule.", "יש לאשר ישראל או חו״ל בלשונית לוח שנה. אזור זמן מ־GPS אינו קובע את סדר החגים."))
+                }
                 if (tab == 0) item { Section(tr("Appearance and language", "מראה ושפה")) {
                     Choice(tr("Appearance", "מראה"), settings.appearance, Appearance.entries, { enumName(it) }, { value -> model.settings { it.copy(appearance = value) } })
                     Choice(tr("Interface language", "שפת הממשק"), settings.language, Language.entries, { enumName(it) }, { value -> model.settings { it.copy(language = value) } })
@@ -50,7 +54,9 @@ import kotlinx.coroutines.withContext
                     Choice(tr("Holiday and parsha schedule", "סדר חגים ופרשות"), settings.inIsrael ?: false, listOf(true, false),
                         { value -> when(value) { true -> tr("Israel", "ישראל"); false -> tr("Diaspora", "חו״ל") } }, { value -> model.settings { it.copy(inIsrael = value, scheduleInitialized = true) } })
                     Choice(tr("Week starts on", "היום הראשון בשבוע"), settings.mondayFirst, listOf(false, true), { if (it) tr("Monday", "שני") else tr("Sunday", "ראשון") }, { value -> model.settings { it.copy(mondayFirst = value) } })
-                    Toggle(tr("Days progress right to left", "הימים מתקדמים מימין לשמאל"), settings.reverseGrid, { value -> model.settings { it.copy(reverseGrid = value) } }, tr("Independent of interface and label language.", "ללא תלות בשפת הממשק או התוויות."))
+                    Choice(tr("Calendar direction", "כיוון לוח השנה"), settings.calendarDirection, CalendarDirection.entries,
+                        { when (it) { CalendarDirection.AUTOMATIC -> tr("Automatic · Gregorian LTR, Hebrew RTL", "אוטומטי · לועזי משמאל, עברי מימין"); CalendarDirection.LTR -> tr("Always left to right", "תמיד משמאל לימין"); CalendarDirection.RTL -> tr("Always right to left", "תמיד מימין לשמאל") } },
+                        { value -> model.settings { it.copy(calendarDirection = value) } })
                     Toggle(tr("Swap month/year swipe directions", "החלפת כיווני החלקה לחודשים ושנים"), settings.swapScrollAxes, { value -> model.settings { it.copy(swapScrollAxes = value) } },
                         tr("Off: left/right changes months; up/down changes years. On: left/right changes years; up/down changes months.", "כבוי: ימינה ושמאלה לחודשים, למעלה ולמטה לשנים. פעיל: ימינה ושמאלה לשנים, למעלה ולמטה לחודשים."))
                     Choice(tr("Double-tap a day", "לחיצה כפולה על יום"), settings.doubleTap, DoubleTapAction.entries, { enumName(it) }, { value -> model.settings { it.copy(doubleTap = value) } })
@@ -58,6 +64,7 @@ import kotlinx.coroutines.withContext
                     Toggle(tr("Show modern holidays", "הצגת מועדים מודרניים"), settings.modernHolidays, { value -> model.settings { it.copy(modernHolidays = value) } })
                     Toggle(tr("Show parsha and special parsha", "הצגת פרשה ופרשה מיוחדת"), settings.showParsha, { value -> model.settings { it.copy(showParsha = value) } })
                     Toggle(tr("Show Omer in month view", "הצגת ספירת העומר בחודש"), settings.showOmer, { value -> model.settings { it.copy(showOmer = value) } })
+                    if (!effectiveDark(settings)) {
                     Toggle(tr("Color special days", "צביעת ימים מיוחדים"), settings.colorSpecialDays, { value -> model.settings { it.copy(colorSpecialDays = value) } })
                     if (settings.colorSpecialDays) {
                         specialDayDefaults.keys.forEach { category ->
@@ -65,6 +72,8 @@ import kotlinx.coroutines.withContext
                         }
                         TextButton(onClick = { model.settings { it.copy(specialDayColors = emptyMap(), holidayTint = specialDayDefaults.getValue("holiday"), shabbatTint = specialDayDefaults.getValue("shabbat")) } }) { Text(tr("Reset colors", "איפוס צבעים")) }
                     }
+                    }
+                    Toggle(tr("Show event basics in month cells", "הצגת פרטי אירועים בתאי החודש"), settings.showEventBasics, { value -> model.settings { it.copy(showEventBasics = value) } })
                     Choice(tr("Hebrew all-day event boundary", "גבולות יום שלם לאירוע עברי"), settings.hebrewDayBoundary, (if (settings.hebrewDayBoundary == null) listOf(null) else emptyList()) + HebrewDayBoundary.entries, { enumName(it) }, { value ->
                         if (value != null && value != settings.hebrewDayBoundary && s.data.events.any { it.calendar == CalendarSystem.HEBREW && it.timeKind == EventTimeKind.ALL_DAY }) boundary = value
                         else model.settings { it.copy(hebrewDayBoundary = value) }
@@ -76,9 +85,11 @@ import kotlinx.coroutines.withContext
                     Choice(tr("Time format", "תבנית שעה"), settings.use24Hour, listOf(null, true, false),
                         { value -> when(value) { true -> tr("24-hour", "24 שעות"); false -> tr("12-hour", "12 שעות"); null -> tr("System", "לפי המערכת") } }, { value -> model.settings { it.copy(use24Hour = value) } })
                     Toggle(tr("Show seconds", "הצגת שניות"), settings.showSeconds, { value -> model.settings { it.copy(showSeconds = value) } })
+                    if (!settings.showSeconds) {
                     Choice(tr("Minute rounding", "עיגול דקות"), settings.rounding, Rounding.entries, { enumName(it) }, { value -> model.settings { it.copy(rounding = value) } })
                     Text(tr("+ means displayed later than the exact time; − means earlier. Reminders use the exact instant.", "+ מסמן תצוגה מאוחרת מהזמן המדויק; − מסמן מוקדמת. התזכורות משתמשות בזמן המדויק."), style = MaterialTheme.typography.bodySmall)
-                    Toggle(tr("Show time remaining", "הצגת הזמן שנותר"), settings.showCountdown, { value -> model.settings { it.copy(showCountdown = value) } })
+                    }
+                    Toggle(tr("Show countdowns", "הצגת ספירה לאחור לכל זמן"), settings.showCountdown, { value -> model.settings { it.copy(showCountdown = value) } })
                 } }
                 if (tab == 3) item { Section(tr("Notifications and alarms", "התראות ותזכורות")) {
                     Text(localizeMessage(model.app.reminders.status(settings), LocalHebrew.current))
@@ -122,7 +133,7 @@ import kotlinx.coroutines.withContext
                     Button(onClick = onBackup, modifier = Modifier.fillMaxWidth()) { Text(tr("Export, share, or import", "ייצוא, שיתוף או ייבוא")) }
                     Text(tr("Everything works offline. Device-calendar accounts sync through Android. Manual backups let you choose which private data to include.", "הנתונים האישיים והחישובים זמינים ללא אינטרנט. חשבונות לוח שנה מסתנכרנים דרך Android. בגיבוי ידני ניתן לבחור אילו נתונים פרטיים לכלול."))
                 } }
-                item { Spacer(Modifier.height(24.dp)) }
+                item { HelpLink(when (tab) { 1 -> "events"; 2 -> "profiles"; 3 -> "reminders"; else -> "getting-started" }); Spacer(Modifier.height(24.dp)) }
             }
         }
     }
@@ -146,7 +157,7 @@ import kotlinx.coroutines.withContext
                 affected.take(3).forEach { event ->
                     val nextData = s.data.copy(settings = settings.copy(hebrewDayBoundary = selected))
                     val preview = OccurrenceEngine().expand(event, s.date, s.date.plusYears(1), nextData).firstOrNull()
-                    Text("${event.title}: ${preview?.start ?: preview?.unavailableReason ?: "No occurrence"} → ${preview?.end ?: ""}", style = MaterialTheme.typography.bodySmall)
+                    Text(event.title + ": " + (preview?.let { TimeFormatting.occurrence(it, settings, android.text.format.DateFormat.is24HourFormat(context), LocalProductLocale.current) } ?: tr("No occurrence", "אין מופע")), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }, confirmButton = { TextButton(onClick = { model.settings { it.copy(hebrewDayBoundary = selected) }; boundary = null }) { Text(tr("Apply to all", "החלה על הכול")) } },

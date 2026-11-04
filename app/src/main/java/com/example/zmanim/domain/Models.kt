@@ -15,14 +15,14 @@ fun newId(): String = UUID.randomUUID().toString()
 @Serializable enum class DoubleTapAction { ZMANIM, NEW_EVENT, DAY }
 @Serializable enum class HebrewDayBoundary { CIVIL, SUNSET }
 @Serializable enum class Rounding { DOWN, NEAREST, UP }
-@Serializable enum class LocationMode { SAVED, FOLLOW }
+@Serializable enum class LocationMode { APP, SAVED, FOLLOW }
+@Serializable enum class CalendarDirection { AUTOMATIC, LTR, RTL }
+@Serializable enum class ReminderMode { NOTIFICATION, ALARM }
 @Serializable enum class Frequency { NONE, DAILY, WEEKLY, MONTHLY, YEARLY }
 @Serializable enum class MissingDayPolicy { PREVIOUS, NEXT, SKIP }
 @Serializable enum class AdarPolicy { ADAR_I, ADAR_II, BOTH, SKIP }
 @Serializable enum class LeapAdarPolicy { ADAR, SKIP }
 @Serializable enum class EventTimeKind { ALL_DAY, FIXED, ZMAN }
-@Serializable enum class DstGapPolicy { SHIFT_FORWARD, SKIP }
-@Serializable enum class DstOverlapPolicy { EARLIER, LATER }
 @Serializable enum class FormulaKind { FIXED_MINUTES, SOLAR_ANGLE, TEMPORAL_HOURS }
 @Serializable enum class SolarSide { MORNING, EVENING }
 @Serializable enum class ReminderOwner { APP, CALENDAR }
@@ -35,6 +35,10 @@ data class Place(
     val id: String = newId(), val name: String, val latitude: Double, val longitude: Double,
     val zoneId: String, val elevation: Double? = null, val elevationSource: String? = null,
     val obtainedAt: Long? = null, val accuracyMeters: Float? = null,
+    val localityId: String? = null, val displayCountry: String? = null, val holidayInIsrael: Boolean? = null,
+    val zoneCandidates: List<String> = emptyList(), val zoneConfirmed: Boolean = true, val zoneUserSelected: Boolean = false,
+    val elevationLatitude: Double? = null, val elevationLongitude: Double? = null,
+    val elevationDataset: String? = null, val elevationObtainedAt: Long? = null,
 ) {
     fun zone(): ZoneId = ZoneId.of(zoneId)
     fun validate() {
@@ -44,11 +48,11 @@ data class Place(
         zone()
         require(elevation == null || elevation.isFinite()) { "Enter a finite elevation." }
     }
-    fun isStale(now: Instant): Boolean = obtainedAt != null && now.toEpochMilli() - obtainedAt !in 0L..86_400_000L
+    fun isStale(now: Instant): Boolean = id == "device-location" && obtainedAt != null && now.toEpochMilli() - obtainedAt !in 0L..86_400_000L
 }
 
 @Serializable
-data class LocationBinding(val mode: LocationMode = LocationMode.SAVED, val savedId: String? = null)
+data class LocationBinding(val mode: LocationMode = LocationMode.APP, val savedId: String? = null)
 
 @Serializable
 data class CalculationOptions(
@@ -75,7 +79,9 @@ data class CustomZman(
 }
 
 @Serializable
-data class ReminderRule(val id: String = newId(), val minutesBefore: Int = 0)
+data class ReminderRule(val id: String = newId(), val minutesBefore: Int = 0,
+    val mode: ReminderMode = ReminderMode.NOTIFICATION, val enabled: Boolean = true,
+    val sound: String? = null, val vibrate: Boolean = true, val snoozeMinutes: Int = 5)
 
 @Serializable
 data class ZmanReminder(val methodId: String, val reminders: List<ReminderRule>)
@@ -86,6 +92,7 @@ data class Profile(
     val selected: List<String> = emptyList(), val hiddenGroups: Set<String> = emptySet(),
     val custom: List<CustomZman> = emptyList(), val options: CalculationOptions = CalculationOptions(),
     val reminders: List<ZmanReminder> = emptyList(), val remindersEnabled: Boolean = true,
+    val displayNames: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -101,15 +108,13 @@ data class Event(
     val id: String = newId(), val title: String, val description: String = "",
     val venue: String = "", val guests: String = "", val calendar: CalendarSystem = CalendarSystem.GREGORIAN,
     // The original civil date preserves the exact Hebrew source date, including Adar identity.
-    val anchorDate: String, val timeKind: EventTimeKind = EventTimeKind.FIXED,
+    val anchorDate: String, val repeatCalendar: CalendarSystem = calendar, val timeKind: EventTimeKind = EventTimeKind.FIXED,
     val localTime: String = "09:00", val previousEvening: Boolean = false,
     val durationMinutes: Long = 60, val zoneId: String,
     val recurrence: Recurrence = Recurrence(), val location: LocationBinding = LocationBinding(),
     val profileId: String? = null, val methodId: String? = null, val offsetMinutes: Double = 0.0,
     val reminders: List<ReminderRule> = emptyList(), val remindersEnabled: Boolean = true,
     val excludedDates: Set<String> = emptySet(),
-    val gapPolicy: DstGapPolicy = DstGapPolicy.SHIFT_FORWARD,
-    val overlapPolicy: DstOverlapPolicy = DstOverlapPolicy.EARLIER,
     val exportCalendarId: Long? = null, val reminderOwner: ReminderOwner = ReminderOwner.APP,
     val parentId: String? = null, val originalOccurrenceDate: String? = null,
 )
@@ -121,18 +126,18 @@ data class AppSettings(
     val openingView: OpeningView = OpeningView.CALENDAR,
     val primaryCalendar: CalendarSystem = CalendarSystem.HEBREW,
     val calendarView: CalendarView = CalendarView.MONTH,
-    val mondayFirst: Boolean = false, val reverseGrid: Boolean = true,
+    val mondayFirst: Boolean = false, val calendarDirection: CalendarDirection = CalendarDirection.AUTOMATIC,
     val swapScrollAxes: Boolean = false, val doubleTap: DoubleTapAction = DoubleTapAction.ZMANIM,
     val showHolidays: Boolean = true, val modernHolidays: Boolean = false,
     val showParsha: Boolean = true, val showOmer: Boolean = false, val colorSpecialDays: Boolean = true,
     val holidayTint: Long = 0xFFF7E7CC, val shabbatTint: Long = 0xFFF7E7CC,
     val specialDayColors: Map<String, Long> = emptyMap(),
     val scheduleInitialized: Boolean = false,
-    val showDeviceEvents: Boolean = true, val inIsrael: Boolean? = null,
+    val showEventBasics: Boolean = true, val showDeviceEvents: Boolean = true, val inIsrael: Boolean? = null,
     val hebrewDayBoundary: HebrewDayBoundary? = null,
     val use24Hour: Boolean? = null, val showSeconds: Boolean = false,
     val rounding: Rounding = Rounding.NEAREST, val showCountdown: Boolean = true,
-    val activeProfileId: String? = null, val location: LocationBinding = LocationBinding(),
+    val activeProfileId: String? = null, val location: LocationBinding = LocationBinding(LocationMode.SAVED),
     val eventNotifications: Boolean = true, val zmanNotifications: Boolean = true,
     val approximateAlarmsAccepted: Boolean = false,
     val backgroundLocation: Boolean = false, val dateNotification: Boolean = false,
@@ -144,9 +149,11 @@ data class AppSettings(
 @Serializable
 data class WidgetConfig(
     val id: String, val kind: WidgetKind, val itemCount: Int = 3,
-    val location: LocationBinding = LocationBinding(), val profileId: String? = null,
+    val profileId: String? = null,
     val calendar: CalendarSystem = CalendarSystem.HEBREW, val sunsetRollover: Boolean = true,
     val tap: WidgetTap = WidgetTap.CALENDAR, val countdown: Boolean = false,
+    val openingView: OpeningView = OpeningView.CALENDAR,
+    val learning: List<String> = listOf("parsha", "bavli"),
 )
 
 @Serializable
@@ -164,9 +171,11 @@ data class AppData(
     val devicePlace: Place? = null,
 ) {
     fun profile(id: String? = settings.activeProfileId): Profile? = profiles.find { it.id == id }
-    fun place(binding: LocationBinding = settings.location): Place? = when (binding.mode) {
-        LocationMode.FOLLOW -> devicePlace
-        LocationMode.SAVED -> places.find { it.id == binding.savedId }
+    fun place(binding: LocationBinding = settings.location): Place? {
+        val effective = if (binding.mode == LocationMode.APP && binding.savedId == null) settings.location else binding
+        val result = if (effective.savedId != null) places.find { it.id == effective.savedId }
+            else if (effective.mode == LocationMode.FOLLOW) devicePlace else null
+        return result?.takeIf { it.zoneConfirmed }
     }
 }
 
@@ -197,3 +206,25 @@ data class OccurrenceSnapshot(val key: String, val eventId: String, val date: St
         fun from(o: Occurrence) = OccurrenceSnapshot(o.key, o.eventId, o.date.toString(), o.title, o.start?.toString(), o.end?.toString(), o.allDay, o.zoneId, o.unavailableReason, o.sourceCalendarId, o.providerId)
     }
 }
+
+fun AppSettings.calendarRtl(system: CalendarSystem = primaryCalendar): Boolean = when (calendarDirection) {
+    CalendarDirection.AUTOMATIC -> system == CalendarSystem.HEBREW
+    CalendarDirection.LTR -> false
+    CalendarDirection.RTL -> true
+}
+
+fun Profile.methodDependencies(roots: Collection<String>): Set<String> {
+    val result = mutableSetOf<String>()
+    fun visit(id: String) {
+        if (!result.add(id)) return
+        custom.find { it.id == id }?.references()?.forEach(::visit)
+        if (MethodCatalog.byId[id]?.needsCandleOffset == true) options.candleLightingNightfallId?.let(::visit)
+    }
+    roots.forEach(::visit)
+    return result
+}
+
+fun Profile.usesAteretTorah(data: AppData): Boolean = methodDependencies(selected +
+    reminders.filter { it.reminders.isNotEmpty() }.map { it.methodId } +
+    data.events.filter { it.profileId == id && it.timeKind == EventTimeKind.ZMAN }.mapNotNull { it.methodId } +
+    listOfNotNull(options.candleLightingNightfallId)).any { MethodCatalog.byId[it]?.needsAteretOffset == true }

@@ -2,6 +2,9 @@ package com.example.zmanim.ui
 
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -30,10 +33,12 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
 }
 
 @Composable fun ZmanimScreen(s: ScreenData, model: AppViewModel, onProfiles: () -> Unit, onMethods: () -> Unit,
-    onLocations: () -> Unit, onCustom: () -> Unit, onGoTo: () -> Unit, onSettings: () -> Unit) {
+    onLocations: () -> Unit, onCustom: () -> Unit, onGoTo: () -> Unit, onSettings: () -> Unit,
+    onHelp: () -> Unit = {}, onReminders: () -> Unit = {}, onProfileSettings: () -> Unit = {}) {
     val place = s.data.place(); val profile = s.data.profile(); val settings = s.data.settings
     val context = LocalContext.current; val locale = LocalProductLocale.current
     val state = rememberLazyListState()
+    var reminderMethod by rememberSaveable { mutableStateOf<String?>(null) }
     var detail by remember { mutableStateOf<CalculatedZman?>(null) }
     var jump by rememberSaveable { mutableIntStateOf(1) }
     var handledJump by remember { mutableIntStateOf(0) }
@@ -67,7 +72,8 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         AppHeader(tr("Zmanim", "זמנים"), "${profile?.name ?: tr("No profile", "ללא פרופיל")} · ${place?.name ?: tr("Choose a location", "בחירת מקום")}", listOf(
-            tr("Profiles", "פרופילים") to onProfiles, tr("Choose zmanim", "בחירת זמנים") to onMethods,
+            tr("Profiles", "פרופילים") to onProfiles, tr("Active profile settings", "הגדרות הפרופיל הפעיל") to onProfileSettings,
+            tr("Active profile reminders", "תזכורות הפרופיל הפעיל") to onReminders, tr("Help", "עזרה") to onHelp, tr("Choose zmanim", "בחירת זמנים") to onMethods,
             tr("Custom zmanim", "זמנים אישיים") to onCustom, tr("Location", "מיקום") to onLocations,
             tr("Back to now", "חזרה לעכשיו") to { model.today(); jump++ }, tr("Go to date", "מעבר לתאריך") to onGoTo,
             tr("Settings", "הגדרות") to onSettings))
@@ -94,16 +100,18 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
                     val isNext = row.key == next?.key
                     if (isNext) Text(tr("Next zman", "הזמן הבא"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                     Surface(onClick = { detail = z }, color = if (isNext) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                        shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().testTag(if (isNext) "nextZman" else "zman:${row.key}")) {
+                        shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().then(if (isNext) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium) else Modifier).testTag(if (isNext) "nextZman" else "zman:${row.key}")) {
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(Modifier.weight(1f)) {
                                 Text(methodLabel(z.id, profile, settings.labels == LabelLanguage.HEBREW), Modifier.fillMaxWidth(),
                                     textAlign = if (settings.labels == LabelLanguage.HEBREW) TextAlign.Right else TextAlign.Start,
                                     style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
                                     color = if (time != null && time < s.now) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-                                if (isNext && settings.showCountdown && time != null) Text(TimeFormatting.countdown(s.now, time), style = MaterialTheme.typography.labelMedium)
+                                if (settings.showCountdown && time != null && time >= s.now) Text(TimeFormatting.countdown(s.now, time), style = MaterialTheme.typography.labelMedium)
+                                if (time != null && time < s.now) Text(tr("Passed", "עבר"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 if (z.value is CalculationValue.Unavailable) Text(localizeMessage(z.value.reason, LocalHebrew.current), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
+                            if (MethodCatalog.byId[z.id]?.isDuration != true) IconButton(onClick = { reminderMethod = z.id }) { Icon(Icons.Default.Notifications, tr("Reminders", "תזכורות")) }
                             if (time != null) Text("\u2066${TimeFormatting.format(time, zone, settings, DateFormat.is24HourFormat(context), locale)}\u2069", style = MaterialTheme.typography.titleMedium)
                             if (z.value is CalculationValue.Length) Text(TimeFormatting.duration(z.value.duration), style = MaterialTheme.typography.titleMedium)
                         }
@@ -112,10 +120,11 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
             }
         }
     }
-    detail?.let { z -> ZmanDetails(z, profile, settings, { detail = null }, onProfiles) }
+    reminderMethod?.let { id -> ProfileRemindersDialog(s, model, id) { reminderMethod = null } }
+    detail?.let { z -> ZmanDetails(z, profile, settings, { detail = null }, onProfileSettings, onLocations) }
 }
 
-@Composable private fun ZmanDetails(z: CalculatedZman, profile: Profile?, settings: AppSettings, onDismiss: () -> Unit, onSetup: () -> Unit) {
+@Composable private fun ZmanDetails(z: CalculatedZman, profile: Profile?, settings: AppSettings, onDismiss: () -> Unit, onSetup: () -> Unit, onLocation: () -> Unit) {
     var technical by remember { mutableStateOf(false) }
     val context = LocalContext.current
     AlertDialog(onDismissRequest = onDismiss, title = { Text(methodLabel(z.id, profile, settings.labels == LabelLanguage.HEBREW)) },
@@ -127,7 +136,9 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
                 CalculationValue.NotApplicable -> tr("Does not apply on this date.", "לא חל בתאריך זה.")
             }, style = MaterialTheme.typography.titleLarge)
             Text(methodExplanation(z.id, profile))
+            TextButton(onClick = { onDismiss(); onSetup() }) { Text(tr("Profile settings and reminders", "הגדרות פרופיל ותזכורות")) }
             Text("${z.details.date} · ${z.details.place.name}")
+            TextButton(onClick = { onDismiss(); onLocation() }) { Text(tr("Location details / height", "פרטי מקום / גובה")) }
             if (!settings.showSeconds) Text(tr("+ means the displayed minute is rounded later; − means earlier. Reminders use the exact time.", "+ מציין עיגול הדקה מאוחר יותר; − מציין מוקדם יותר. התזכורות משתמשות בזמן המדויק."), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { technical = !technical }) { Text(tr("Calculation details", "פרטי החישוב")) }
             if (technical) {
@@ -135,6 +146,7 @@ internal fun timelineRows(days: List<DayZmanim>, zone: ZoneId): List<TimelineRow
                 Text("${z.details.place.zoneId} · ${z.details.effectiveElevation}")
                 Text("\u2066${z.details.place.latitude}, ${z.details.place.longitude}\u2069")
                 val method = MethodCatalog.byId[z.id]
+                method?.let { Text(tr("Original name: ", "שם מקורי: ") + it.label); Text("KosherJava 3.0.0 · ${it.sourceMethod}") }
                 if (method?.supportsHalfDays == true) Text(if (z.details.options.astronomicalHalfDays)
                     tr("Temporal hours are calculated separately for the morning and afternoon.", "שעות זמניות מחושבות בנפרד לבוקר ולאחר הצהריים.")
                     else tr("A temporal hour is one twelfth of the selected day boundaries.", "שעה זמנית היא חלק אחד משנים עשר של היום לפי הגבולות שנבחרו."))

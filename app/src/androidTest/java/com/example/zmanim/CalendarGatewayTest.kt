@@ -58,18 +58,40 @@ class CalendarGatewayTest {
         }
     }
     @Test fun ordinaryEventsSupportCreateEditDeleteAndDstOverlapSelection() {
-        val event = Event(title = "Ordinary", anchorDate = "2026-11-01", localTime = "01:30", zoneId = "America/New_York", overlapPolicy = DstOverlapPolicy.LATER)
+        val event = Event(title = "Ordinary", anchorDate = "2026-11-02", localTime = "01:30", zoneId = "America/New_York", reminders = listOf(ReminderRule(minutesBefore = 10)))
         val id = gateway.saveOrdinary(event, calendarId)
         val loaded = gateway.ordinaryEvent(id)!!
         assertEquals("01:30", LocalTime.parse(loaded.first.localTime).toString())
+        assertEquals(10, loaded.first.reminders.single().minutesBefore)
+        assertEquals(ReminderOwner.CALENDAR, loaded.first.reminderOwner)
         context.contentResolver.query(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), arrayOf("dtstart"), null, null, null)!!.use {
-            assertTrue(it.moveToFirst()); assertEquals(Instant.parse("2026-11-01T06:30:00Z").toEpochMilli(), it.getLong(0))
+            assertTrue(it.moveToFirst()); assertEquals(Instant.parse("2026-11-02T06:30:00Z").toEpochMilli(), it.getLong(0))
         }
         assertEquals(id, gateway.saveOrdinary(event.copy(title = "Edited"), calendarId, id))
         assertEquals("Edited", gateway.ordinaryEvent(id)!!.first.title)
         gateway.deleteOrdinary(id)
         assertNull(gateway.ordinaryEvent(id))
     }
+    @Test fun convertingAProviderEventToAManagedRuleAdoptsItsRecordInsteadOfDuplicatingIt() {
+        val today = LocalDate.now(ZoneId.of("Asia/Jerusalem"))
+        val existing = Event(title = "Adopted event", anchorDate = today.toString(), zoneId = "Asia/Jerusalem")
+        val id = gateway.saveOrdinary(existing, calendarId)
+        val place = Place(id = "adopt-place", name = "Jerusalem", latitude = 31.778, longitude = 35.235, zoneId = "Asia/Jerusalem")
+        val profile = Profile(id = "adopt-profile")
+        val managed = existing.copy(timeKind = EventTimeKind.ZMAN, methodId = "sea-level-sunset", profileId = profile.id,
+            recurrence = Recurrence(Frequency.DAILY, count = 2), exportCalendarId = calendarId)
+        val data = AppData(settings = AppSettings(location = LocationBinding(savedId = place.id)),
+            profiles = listOf(profile), places = listOf(place), events = listOf(managed))
+        val occurrence = OccurrenceEngine().occurrence(managed, today, data)
+        val adopted = gateway.adopt(managed, occurrence, calendarId, id)
+        val links = gateway.reconcile(data.copy(exports = listOf(adopted)), today)
+        assertEquals(2, links.size)
+        assertEquals(id, links.first { it.id == occurrence.key }.providerId)
+        val visible = gateway.instances(today.atStartOfDay(place.zone()).toInstant(), today.plusDays(3).atStartOfDay(place.zone()).toInstant(), setOf(calendarId))
+        assertEquals(2, visible.size)
+        assertEquals(occurrence.start!!.toEpochMilli(), visible.first { it.providerId == id }.start!!.toEpochMilli())
+    }
+
     @Test fun reminderSchedulesIgnoreDisplayRounding() {
         val now = Instant.parse("2026-11-01T00:00:00Z")
         val scheduler = ReminderScheduler(context, Clock.fixed(now, ZoneOffset.UTC))

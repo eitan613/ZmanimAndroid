@@ -63,9 +63,9 @@ class DeviceLocation(private val context: Context, private val places: OfflinePl
     }
     fun toPlace(location: Location): Place {
         val zones = places.timezones(location.latitude, location.longitude)
-        require(zones.size == 1) { "The location’s timezone is ambiguous. Save these coordinates with a confirmed timezone: ${location.latitude}, ${location.longitude}." }
+        val resolved = resolveDeviceZone(zones, java.time.ZoneId.systemDefault().id)
         return Place(id = AppRepository.DEVICE_ID, name = "Device location", latitude = location.latitude,
-            longitude = location.longitude, zoneId = zones.single(), obtainedAt = location.time,
+            longitude = location.longitude, zoneId = resolved ?: java.time.ZoneId.systemDefault().id, zoneCandidates = zones, zoneConfirmed = resolved != null, obtainedAt = location.time,
             accuracyMeters = location.accuracy).also { it.validate() }
     }
     private fun backgroundIntent() = PendingIntent.getBroadcast(context, 200,
@@ -84,7 +84,7 @@ class LocationUpdateReceiver : BroadcastReceiver() {
         val app = context.applicationContext as ZmanimApplication
         val pending = goAsync()
         app.runBackground(pending) {
-            val place = app.location.toPlace(location)
+            val place = retainNearbyZoneChoice(app.location.toPlace(location), app.repository.data.devicePlace)
             app.repository.update { it.copy(devicePlace = place) }
         }
     }

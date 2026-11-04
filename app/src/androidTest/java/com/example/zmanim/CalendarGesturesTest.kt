@@ -27,7 +27,7 @@ class CalendarGesturesTest {
             assertEquals(date, model.screen.value!!.date)
         }
         for (rtl in listOf(false, true)) for (swapped in listOf(false, true)) {
-            runBlocking { app.repository.settings { it.copy(reverseGrid = rtl, swapScrollAxes = swapped) } }
+            runBlocking { app.repository.settings { it.copy(calendarDirection = if (rtl) CalendarDirection.RTL else CalendarDirection.LTR, swapScrollAxes = swapped) } }
             compose.runOnIdle { model.select(initial) }; expect(initial)
             compose.onNodeWithTag("monthGrid").performTouchInput { swipeUp(durationMillis = 350) }
             expect(if (swapped) initial.plusMonths(1) else initial.plusYears(1))

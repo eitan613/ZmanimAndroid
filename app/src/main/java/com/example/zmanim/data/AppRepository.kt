@@ -107,20 +107,27 @@ class AppRepository(private val context: Context) {
     suspend fun settings(change: (AppSettings) -> AppSettings) = update { it.copy(settings = change(it.settings)) }
     suspend fun saveProfile(profile: Profile) {
         CalculationEngine().validateProfile(profile)
-        update { d -> d.copy(profiles = d.profiles.filterNot { it.id == profile.id } + profile,
+        update { d ->
+            require(d.events.filter { it.profileId == profile.id && it.timeKind == EventTimeKind.ZMAN }.all { event ->
+                event.methodId in MethodCatalog.byId || profile.custom.any { it.id == event.methodId }
+            }) { "This calculation is used by an event. Replace its event binding first." }
+            d.copy(profiles = d.profiles.filterNot { it.id == profile.id } + profile,
             settings = if (d.settings.activeProfileId == null) d.settings.copy(activeProfileId = profile.id) else d.settings) }
     }
     suspend fun updateProfile(id: String, change: (Profile) -> Profile) = update { data ->
         val current = data.profile(id) ?: error("This profile no longer exists.")
         val updated = change(current)
         CalculationEngine().validateProfile(updated)
+        require(data.events.filter { it.profileId == id && it.timeKind == EventTimeKind.ZMAN }.all { event ->
+            event.methodId in MethodCatalog.byId || updated.custom.any { it.id == event.methodId }
+        }) { "This calculation is used by an event. Replace its event binding first." }
         data.copy(profiles = data.profiles.map { if (it.id == id) updated else it })
     }
     suspend fun deleteProfile(id: String) = update { d ->
         require(d.events.none { it.profileId == id }) { "This profile is used by events. Change those events before deleting it." }
         require(d.widgets.none { it.profileId == id }) { "This profile is used by a widget. Reconfigure that widget first." }
         val remaining = d.profiles.filterNot { it.id == id }
-        d.copy(profiles = remaining, settings = d.settings.copy(activeProfileId = if (d.settings.activeProfileId == id) null else d.settings.activeProfileId))
+        d.copy(profiles = remaining, settings = d.settings.copy(activeProfileId = if (d.settings.activeProfileId == id) remaining.firstOrNull()?.id else d.settings.activeProfileId))
     }
     suspend fun duplicateProfile(profile: Profile) {
         val ids = profile.custom.associate { it.id to newId() }
@@ -128,11 +135,12 @@ class AppRepository(private val context: Context) {
         saveProfile(profile.copy(id = newId(), name = "${profile.name} copy", selected = profile.selected.map(::mapped),
             custom = profile.custom.map { it.copy(id = mapped(it.id), base = mapped(it.base), dayStart = mapped(it.dayStart), dayEnd = mapped(it.dayEnd)) },
             options = profile.options.copy(candleLightingNightfallId = profile.options.candleLightingNightfallId?.let(::mapped)),
+            displayNames = profile.displayNames.mapKeys { mapped(it.key) },
             reminders = profile.reminders.map { it.copy(methodId = mapped(it.methodId), reminders = it.reminders.map { r -> r.copy(id = newId()) }) }))
     }
     suspend fun savePlace(place: Place) { place.validate(); update { it.copy(places = it.places.filterNot { p -> p.id == place.id } + place) } }
     suspend fun deletePlace(id: String) = update { d ->
-        require(d.settings.location.savedId != id && d.events.none { it.location.savedId == id } && d.widgets.none { it.location.savedId == id }) { "This location is in use. Change its bindings before deleting it." }
+        require(d.settings.location.savedId != id && d.events.none { it.location.savedId == id }) { "This location is in use. Change its bindings before deleting it." }
         d.copy(places = d.places.filterNot { it.id == id })
     }
     suspend fun saveEvent(event: Event) { OccurrenceEngine().validate(event, data); update { it.copy(events = it.events.filterNot { e -> e.id == event.id } + event) } }
@@ -167,6 +175,7 @@ class AppRepository(private val context: Context) {
     }
     companion object {
         const val DEVICE_ID = "device-location"
+        const val SNAPSHOT_ID = "current-location-snapshot"
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS settings_journal (id INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(id))")
@@ -175,10 +184,10 @@ class AppRepository(private val context: Context) {
     }
 }
 
-/** Best-effort offline timezone inference, performed once; explicit choices always win. */
+/** Only reviewed locality metadata initializes holiday rules. A timezone is not a locality. */
 internal fun initializeSchedule(data: AppData): AppData {
     if (data.settings.scheduleInitialized) return data
     if (data.settings.inIsrael != null) return data.copy(settings = data.settings.copy(scheduleInitialized = true))
     val place = data.place() ?: return data
-    return data.copy(settings = data.settings.copy(inIsrael = place.zoneId == "Asia/Jerusalem", scheduleInitialized = true))
+    return data.copy(settings = data.settings.copy(inIsrael = place.holidayInIsrael ?: return data, scheduleInitialized = true))
 }

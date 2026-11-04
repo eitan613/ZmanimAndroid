@@ -41,6 +41,23 @@ class CalendarGateway(private val context: Context) {
             } }
         }.orEmpty()
     }
+    /** Reload the exact recurring instance; never substitutes the series anchor. */
+    fun instance(providerId: Long, beginMillis: Long): Occurrence? {
+        if (!canRead()) return null
+        val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
+            ContentUris.appendId(it, beginMillis - 1000); ContentUris.appendId(it, beginMillis + 1000)
+        }.build()
+        return resolver.query(uri, arrayOf("event_id", "title", "begin", "end", "allDay", "eventTimezone", "calendar_id"),
+            "event_id = ? AND begin = ?", arrayOf(providerId.toString(), beginMillis.toString()), null)?.use { c ->
+            if (!c.moveToFirst()) null else {
+                val start = Instant.ofEpochMilli(c.getLong(2))
+                val zone = runCatching { ZoneId.of(c.getString(5)) }.getOrDefault(ZoneId.systemDefault())
+                Occurrence("device:$providerId:$start", "device:$providerId", start.atZone(if (c.getInt(4) != 0) ZoneOffset.UTC else zone).toLocalDate(),
+                    c.getString(1).orEmpty(), start, Instant.ofEpochMilli(c.getLong(3)), c.getInt(4) != 0, zone.id,
+                    sourceCalendarId = c.getLong(6), providerId = providerId)
+            }
+        }
+    }
     fun viewIntent(providerId: Long) = Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, providerId))
     fun invitationIntent(event: Event): Intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI).apply {
         putExtra(CalendarContract.Events.TITLE, event.title)
@@ -72,6 +89,10 @@ class CalendarGateway(private val context: Context) {
         val allDay = event.timeKind == EventTimeKind.ALL_DAY
         val start = if (allDay) date.atStartOfDay(ZoneOffset.UTC).toInstant() else
             OccurrenceEngine().occurrence(event, date, AppData()).start ?: error("This event time does not exist under its clock-change policy.")
+        if (!allDay) {
+            val segments = OccurrenceEngine().expand(event, date, date.plusDays(1), AppData())
+            require(segments.size == 1) { "Save this clock-change rule in the app and export its actual segments." }
+        }
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.TITLE, event.title); put(CalendarContract.Events.DESCRIPTION, event.description)
@@ -81,11 +102,15 @@ class CalendarGateway(private val context: Context) {
             put(CalendarContract.Events.EVENT_TIMEZONE, if (allDay) "UTC" else event.zoneId)
             val rule = nativeRule(event)
             if (rule != null) { put(CalendarContract.Events.RRULE, rule); put(CalendarContract.Events.DURATION, if (allDay) "P1D" else "PT${event.durationMinutes}M"); putNull(CalendarContract.Events.DTEND) }
-            else { putNull(CalendarContract.Events.RRULE); putNull(CalendarContract.Events.DURATION); put(CalendarContract.Events.DTEND, start.plusSeconds(if (allDay) 86400 else event.durationMinutes * 60).toEpochMilli()) }
+            else {
+                putNull(CalendarContract.Events.RRULE); putNull(CalendarContract.Events.DURATION)
+                val end = if (allDay) start.plusSeconds(86400) else OccurrenceEngine().occurrence(event, date, AppData()).end ?: error("The local interval is skipped by a clock change.")
+                put(CalendarContract.Events.DTEND, end.toEpochMilli())
+            }
         }
         val id = if (existingId == null) ContentUris.parseId(checkNotNull(resolver.insert(CalendarContract.Events.CONTENT_URI, values)))
         else { resolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingId), values, null, null); existingId }
-        replaceProviderReminders(id, event.reminders)
+        replaceProviderReminders(id, if (event.remindersEnabled) event.reminders.filter { it.enabled } else emptyList())
         return id
     }
     fun ordinaryEvent(id: Long): Pair<Event, Long>? {
@@ -97,10 +122,22 @@ class CalendarGateway(private val context: Context) {
             val start = Instant.ofEpochMilli(c.getLong(3)).atZone(if (c.getInt(6) != 0) ZoneOffset.UTC else zone)
             // Advanced external recurrence must be edited in its owning calendar app to avoid losing semantics.
             if (!c.getString(9).isNullOrBlank()) return@use null
+            val providerReminders = resolver.query(CalendarContract.Reminders.CONTENT_URI, arrayOf("_id", "minutes", "method"), "event_id = ?", arrayOf(id.toString()), null)?.use remindersRead@ { reminders ->
+                buildList<ReminderRule> {
+                    while (reminders.moveToNext()) {
+                        if (reminders.getInt(1) < 0 || reminders.getInt(2) !in setOf(CalendarContract.Reminders.METHOD_ALERT, CalendarContract.Reminders.METHOD_DEFAULT)) return@remindersRead null
+                        add(ReminderRule(id = "provider-reminder:${reminders.getLong(0)}", minutesBefore = reminders.getInt(1)))
+                    }
+                }
+            } ?: return@use null
+            val end = if (c.isNull(4)) start.toInstant().plusSeconds(3600) else Instant.ofEpochMilli(c.getLong(4))
+            val wallDuration = Duration.between(start.toLocalDateTime(), end.atZone(zone).toLocalDateTime()).toMinutes()
+            if (c.getInt(6) == 0 && (wallDuration <= 0 || localIntervalSegments(start.toLocalDateTime(), start.toLocalDateTime().plusMinutes(wallDuration), zone) != listOf(start.toInstant() to end))) return@use null
             Event(title = c.getString(0).orEmpty(), description = c.getString(1).orEmpty(), venue = c.getString(2).orEmpty(),
                 anchorDate = start.toLocalDate().toString(), localTime = start.toLocalTime().toString(),
-                durationMinutes = if (c.isNull(4)) 60 else Duration.between(start.toInstant(), Instant.ofEpochMilli(c.getLong(4))).toMinutes().coerceAtLeast(1),
-                zoneId = zone.id, timeKind = if (c.getInt(6) != 0) EventTimeKind.ALL_DAY else EventTimeKind.FIXED) to c.getLong(8)
+                durationMinutes = if (c.getInt(6) != 0) 1440 else wallDuration,
+                zoneId = zone.id, timeKind = if (c.getInt(6) != 0) EventTimeKind.ALL_DAY else EventTimeKind.FIXED,
+                reminders = providerReminders, reminderOwner = ReminderOwner.CALENDAR) to c.getLong(8)
         }
     }
     fun deleteOrdinary(id: Long) { check(canWrite()); resolver.delete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), null, null) }
@@ -167,13 +204,18 @@ class CalendarGateway(private val context: Context) {
                 if (!currentValues) resolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, link.providerId), values, null, null)
                 link.providerId
             }
-            val reminders = if (event.remindersEnabled && event.reminderOwner == ReminderOwner.CALENDAR) event.reminders else emptyList()
+            val reminders = if (event.remindersEnabled && event.reminderOwner == ReminderOwner.CALENDAR) event.reminders.filter { it.enabled } else emptyList()
             val currentReminders = resolver.query(CalendarContract.Reminders.CONTENT_URI, arrayOf("minutes"), "event_id = ?", arrayOf(providerId.toString()), null)?.use { c -> buildList { while (c.moveToNext()) add(c.getInt(0)) } }.orEmpty()
             if (currentReminders.sorted() != reminders.map { it.minutesBefore }.sorted()) replaceProviderReminders(providerId, reminders)
             links[id] = ExportLink(id, event.id, occurrence.date.toString(), calendarId, providerId, fingerprint(providerId)!!)
         }
         return links.values.toList()
     }
+    /** Adopt an edited provider record when its rule needs app-managed occurrence export. */
+    fun adopt(event: Event, occurrence: Occurrence, calendarId: Long, providerId: Long): ExportLink =
+        ExportLink(occurrence.key, event.id, occurrence.date.toString(), calendarId, providerId,
+            fingerprint(providerId) ?: error("This device-calendar event is no longer available."))
+
     fun restore(link: ExportLink) {
         check(canWrite())
         if (fingerprint(link.providerId) != null) resolver.delete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, link.providerId), null, null)

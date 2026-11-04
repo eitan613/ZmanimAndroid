@@ -1,0 +1,152 @@
+{
+  "version": "6.13.1",
+  "source": "https://github.com/hebcal/hebcal-learning",
+  "license": "BSD-2-Clause",
+  "civilRollover": true,
+  "start": "2020-01-01",
+  "endExclusive": "2041-01-01",
+  "providers": [
+    {
+      "id": "bavli",
+      "schedule": "dafYomi",
+      "en": "Daf Yomi · Bavli",
+      "he": "דף יומי · בבלי",
+      "cycle": "Standard Bavli cycle; 2711 days in modern cycles",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "yerushalmi-vilna",
+      "schedule": "yerushalmi-vilna",
+      "en": "Yerushalmi · Vilna",
+      "he": "ירושלמי · וילנא",
+      "cycle": "Vilna edition; skips Yom Kippur and observed Tisha B’Av; not Oz V’hadar or Meshulav",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "mishna",
+      "schedule": "mishnaYomi",
+      "en": "Mishna Yomi · two mishnayot",
+      "he": "משנה יומית · שתי משניות",
+      "cycle": "Two mishnayot per day; cycle anchor 1947-05-20",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "perek",
+      "schedule": "perekYomi",
+      "en": "Mishna · Perek Yomi",
+      "he": "משנה · פרק יומי",
+      "cycle": "One Mishna chapter per day",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "nach",
+      "schedule": "nachYomi",
+      "en": "Nach Yomi",
+      "he": "נ״ך יומי",
+      "cycle": "One chapter per day; standard Nach Yomi cycle",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "rambam-one",
+      "schedule": "rambam1",
+      "en": "Rambam · one chapter",
+      "he": "רמב״ם · פרק אחד",
+      "cycle": "Chabad one-chapter cycle, 1017 days; begins with introductory readings",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "rambam-three",
+      "schedule": "rambam3",
+      "en": "Rambam · three chapters",
+      "he": "רמב״ם · שלושה פרקים",
+      "cycle": "Chabad three-chapter cycle; introductory readings and special combined chapters",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "dirshu-amud",
+      "schedule": "dirshuAmudYomi",
+      "en": "Amud Yomi · Dirshu",
+      "he": "עמוד יומי · דרשו",
+      "cycle": "Dirshu Bavli amud cycle beginning 2023-10-16; distinct from Oraysa",
+      "validFrom": "2023-10-16",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "chafetz-chaim",
+      "schedule": "chofetzChaim",
+      "en": "Chafetz Chaim",
+      "he": "חפץ חיים",
+      "cycle": "Three cycles per Hebrew year beginning Tishrei, Shevat and Sivan, with ordinary/leap-year divisions from Hebcal",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "tanya",
+      "schedule": "tanyaYomi",
+      "en": "Tanya · Chitas",
+      "he": "תניא · חת״ת",
+      "cycle": "Hayom Yom/Chitas; begins 19 Kislev; Sefaria paragraph-start references; ordinary/leap-year tables",
+      "validFrom": "2020-01-01",
+      "validThrough": "2040-12-31"
+    },
+    {
+      "id": "dirshu-halacha",
+      "schedule": "dirshuDafHalacha",
+      "en": "Daf HaYomi B’Halacha · Dirshu",
+      "he": "דף היומי בהלכה · דרשו",
+      "cycle": "Third cycle transcribed from Dirshu schedules; Sunday–Thursday study, Friday/Shabbat review; ends 2027-08-31",
+      "validFrom": "2022-02-20",
+      "validThrough": "2027-08-31"
+    },
+    {
+      "id": "yerushalmi-oz",
+      "schedule": "oz-vhadar-published-cycles-11-12",
+      "en": "Yerushalmi · Oz V’hadar",
+      "he": "ירושלמי · עוז והדר",
+      "cycle": "Published Oz V’hadar pagination, cycles 11–12; 2,094 consecutive civil days per published cycle; no holiday skips in these source tables. Distinct from Vilna and Schottenstein.",
+      "validFrom": "2022-11-14",
+      "validThrough": "2034-05-02",
+      "source": "Kollel Iyun Hadaf / dafyomi.co.il",
+      "version": "Published cycles 11–12 · snapshot 2026-11-04",
+      "sources": [
+        {
+          "url": "https://www.dafyomi.co.il/calendars/calendaryeruoz11heb-cycle.htm",
+          "sha256": "475b349ff88132669b6ffe09d92f629f60f37429a0ed7503d2df09b5ddca80a2",
+          "cycle": 11,
+          "records": 2094
+        },
+        {
+          "url": "https://www.dafyomi.co.il/calendars/calendaryeruoz12heb-cycle.htm",
+          "sha256": "435840591bdd292b87f895b9148bf6d9306078d69e724653f40cfcab405ffd14",
+          "cycle": 12,
+          "records": 2094
+        }
+      ]
+    },
+    {
+      "id": "oraysa",
+      "en": "Oraysa · Amud V’chazara",
+      "he": "אורייתא · עמוד וחזרה",
+      "cycle": "Finite published Yevamot calendar with bordering Chagigah/Ketubot readings. New amud Sunday–Thursday, previous-amud review; Friday reviews Sunday/Monday, Shabbat Tuesday–Thursday. Includes holidays as printed; no extrapolation after source coverage.",
+      "validFrom": "2025-11-23",
+      "validThrough": "2026-11-07",
+      "source": "Oraysa official printed calendar",
+      "version": "Yevamot 2025–2026 · snapshot 2026-11-04",
+      "sources": [
+        {
+          "url": "https://dev.oraysa.org/_files/ugd/4323da_75e996c05d904bfca2643c55d3a1e82b.pdf",
+          "sha256": "b3a55d5158038a77a6a7e31a84b2b51a16e846315f27c9520696aca26d42721a",
+          "records": 350,
+          "validatedWeekdays": 250
+        }
+      ]
+    }
+  ]
+}

@@ -22,7 +22,7 @@ class UiAppearanceTest {
     private fun screenshot(name: String) {
         compose.waitForIdle()
         android.os.SystemClock.sleep(350) // Let Android window animations finish before capturing hardware layers.
-        val dir = File(compose.activity.cacheDir, "qa").apply { mkdirs() }
+        val dir = File(compose.activity.filesDir, "qa").apply { mkdirs() }
         InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
             File(dir, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
@@ -39,12 +39,19 @@ class UiAppearanceTest {
         screenshot("calendar-light.png")
         val originalFontScale = compose.activity.resources.configuration.fontScale
         try {
-            runBlocking { app.repository.settings { it.copy(language = Language.HEBREW, labels = LabelLanguage.HEBREW, appearance = Appearance.DARK, reverseGrid = true) } }
+            runBlocking { app.repository.settings { it.copy(language = Language.HEBREW, labels = LabelLanguage.HEBREW, appearance = Appearance.DARK, calendarDirection = CalendarDirection.RTL) } }
             compose.waitUntil(10000) { compose.onAllNodesWithTag("overflowMenu").fetchSemanticsNodes().isNotEmpty() }
+            val model = androidx.lifecycle.ViewModelProvider(compose.activity)[com.example.zmanim.ui.AppViewModel::class.java]
+            compose.runOnIdle { model.select(java.time.LocalDate.of(2026, 9, 12)) }
+            compose.waitUntil(10000) { model.screen.value?.date == java.time.LocalDate.of(2026, 9, 12) }
             screenshot("calendar-hebrew-dark.png")
             shell("settings put system font_scale 1.7")
             compose.waitUntil(10000) { compose.activity.resources.configuration.fontScale >= 1.69f && compose.onAllNodesWithTag("overflowMenu").fetchSemanticsNodes().isNotEmpty() }
             compose.waitForIdle()
+            val dateLayout = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            compose.onNodeWithTag("secondaryDate:2026-09-11", useUnmergedTree = true).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(dateLayout) }
+            org.junit.Assert.assertEquals("Secondary date digits stay on one line at large font size", 1, dateLayout.single().lineCount)
+            screenshot("calendar-hebrew-large.png")
             compose.onNodeWithTag("overflowMenu").performClick()
             compose.onNodeWithText("הגדרות").performClick()
             compose.waitUntil(10000) { compose.onAllNodesWithTag("settingsList").fetchSemanticsNodes().isNotEmpty() }
@@ -55,7 +62,7 @@ class UiAppearanceTest {
             screenshot("backup-hebrew-large.png")
         } catch (e: Throwable) {
             screenshot("appearance-failure.png")
-            File(compose.activity.cacheDir, "qa/appearance-tree.txt").writeText(compose.onRoot().printToString())
+            File(compose.activity.filesDir, "qa/appearance-tree.txt").writeText(compose.onRoot().printToString())
             throw e
         } finally { shell("settings put system font_scale $originalFontScale") }
     }

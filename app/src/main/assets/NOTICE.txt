@@ -18,3 +18,44 @@ The transformation is reproducible with tools/prepare_places.py.
 Calculations use KosherJava Zmanim 3.0.0 by Eliyahu Hershfeld and contributors,
 licensed under LGPL-2.1-or-later. The application calls the library directly.
 https://github.com/KosherJava/zmanim
+
+Reviewed locality presentation/defaults: selected GeoNames records are matched by
+stable ID, names and coordinates to the Israel Central Bureau of Statistics 2023
+locality file (coordinates EPSG:2039 converted to WGS84 at build time). The full
+review table and original source coordinates are in locality-corrections.json.
+https://data.gov.il/he/datasets/lamas/localities-in-israel/d47a54ff-87f0-44b3-b33a-f284c0c38e5a
+Display country, civil timezone and Israel holiday default are independent values.
+No blanket conversion is applied to PS records. Battir's erroneous Hebrew alias
+for nearby Betar Illit is excluded from app search. This is app presentation and
+calculation metadata, not a boundary dataset modification.
+
+Optional elevation: Open Topo Data public API / SRTM90m. USGS/NASA SRTM terrain
+height, meters above EGM96 mean sea level, 90 m horizontal resolution, coverage
+60 degrees south to 60 degrees north. Public domain SRTM data. User coordinates
+are sent only on Look up elevation; returned coordinates/result/dataset/time are
+cached. Interpolation is the service default (bilinear); terrain does not model
+buildings or local horizon obstruction. Service limits: 1 request/second,
+1,000 requests/day, no availability guarantee.
+https://www.opentopodata.org/datasets/srtm/
+https://www.opentopodata.org/
+
+Daily learning reference tables: Hebcal @hebcal/learning 6.13.1, BSD-2-Clause;
+Oz V’hadar dates/pagination from Kollel Iyun Hadaf's published cycles 11–12;
+Oraysa daily/review references from its official Yevamot calendar.
+See NOTICE-learning.txt and learning-metadata.json for sources, editions, cycle
+identity, version and finite coverage. Generated references cover 2020–2040.
+Learning advances at local civil midnight independently of Hebrew date badges.
+Dirshu Halacha ends 31 August 2027; Oz V’hadar covers 14 November 2022–2 May 2034;
+Oraysa covers 23 November 2025–7 November 2026, with explicit unavailability beyond.
+https://github.com/hebcal/hebcal-learning
+
+Packaged AndroidX (Activity, Compose UI/Material3, Core, DataStore, Glance,
+Lifecycle, Navigation, Room, WorkManager), Kotlin standard library,
+kotlinx.coroutines, and kotlinx.serialization: Apache License 2.0.
+https://source.android.com/docs/setup/about/licenses
+https://github.com/JetBrains/kotlin
+https://github.com/Kotlin/kotlinx.coroutines
+https://github.com/Kotlin/kotlinx.serialization
+License texts are bundled with these notices. Hebrew icon font notice is bundled
+separately. KosherJava 3.0.0 source is available from its linked upstream repository
+and Maven Central source artifact; no library binaries are modified by this app.

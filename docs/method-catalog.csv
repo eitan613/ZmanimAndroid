@@ -1,10 +1,10 @@
 id,group,label,result,required_parameter,uses_elevation,supports_profile_half_days,review
-sunrise,sunrise,Sunrise,Instant,,True,False,Pending owner review
+sunrise,sunrise,Sunrise · elevation adjusted,Instant,,True,False,Pending owner review
 sea-level-sunrise,sunrise,Sunrise · sea level,Instant,,False,False,Pending owner review
 begin-civil-twilight,twilight,Morning Civil Twilight,Instant,,False,False,Pending owner review
 begin-nautical-twilight,twilight,Morning Nautical Twilight,Instant,,False,False,Pending owner review
 begin-astronomical-twilight,twilight,Morning Astronomical Twilight,Instant,,False,False,Pending owner review
-sunset,sunset,Sunset,Instant,,True,False,Pending owner review
+sunset,sunset,Sunset · elevation adjusted,Instant,,True,False,Pending owner review
 sea-level-sunset,sunset,Sunset · sea level,Instant,,False,False,Pending owner review
 end-civil-twilight,twilight,Evening Civil Twilight,Instant,,False,False,Pending owner review
 end-nautical-twilight,twilight,Evening Nautical Twilight,Instant,,False,False,Pending owner review
@@ -88,8 +88,8 @@ sof-zman-tfila-mga96-minutes-zmanis,prayer,Latest teffilah Magen Avraham 96 temp
 sof-zman-tfila-mga120-minutes,prayer,Latest teffilah Magen Avraham 120 minutes · Day: Dawn 120 minutes → Nightfall 120 minutes,Instant,,True,True,Pending owner review
 sof-zman-tfila2-hours-before-chatzos,prayer,Latest teffilah 2 hours Before Chatzos · Day: Sea Level Sunrise → Sea Level Sunset,Instant,,False,False,Pending owner review
 mincha-gedola30-minutes,mincha-gedolah,Earliest Mincha 30 minutes · Day: Sea Level Sunrise → Sea Level Sunset,Instant,,False,False,Pending owner review
-mincha-gedola72-minutes,mincha-gedolah,Earliest Mincha 72 minutes · Day: Midday → Nightfall 72 minutes,Instant,,True,True,Pending owner review
-mincha-gedola16-point1-degrees,mincha-gedolah,Earliest Mincha 16.1° below horizon · Day: Midday → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
+mincha-gedola72-minutes,mincha-gedolah,Earliest Mincha 72 minutes · Day: Dawn 72 minutes → Nightfall 72 minutes,Instant,,True,True,Pending owner review
+mincha-gedola16-point1-degrees,mincha-gedolah,Earliest Mincha 16.1° below horizon · Day: Dawn 16.1° below horizon → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
 mincha-gedola-ahavat-shalom,mincha-gedolah,Earliest Mincha Ahavat Shalom · Day: Sea Level Sunrise → Sea Level Sunset,Instant,,False,False,Pending owner review
 mincha-gedola-gragreater-than30,mincha-gedolah,Earliest Mincha Vilna Gaon Later than 30 · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
 mincha-ketana16-point1-degrees,mincha-ketanah,Mincha ketanah 16.1° below horizon · Day: Dawn 16.1° below horizon → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
@@ -114,11 +114,11 @@ bain-hashmashos-rt58-point5-minutes,twilight,Twilight Rabbeinu Tam 58.5 minutes,
 bain-hashmashos-rt13-point5-minutes-before7-point083-degrees,twilight,Twilight Rabbeinu Tam 13.5 minutes Before 7.083° below horizon,Instant,,False,False,Pending owner review
 bain-hashmashos-rt2-stars,twilight,Twilight Rabbeinu Tam 2Stars,Instant,,True,False,Pending owner review
 bain-hashmashos-yereim18-minutes,twilight,Twilight Yereim 18 minutes,Instant,,True,False,Pending owner review
-bain-hashmashos-yereim3-point05-degrees,twilight,Twilight Yereim 3.05° below horizon,Instant,,False,False,Pending owner review
+bain-hashmashos-yereim3-point05-degrees,twilight,Twilight Yereim 3.05° above horizon,Instant,,False,False,Pending owner review
 bain-hashmashos-yereim16-point875-minutes,twilight,Twilight Yereim 16.875 minutes,Instant,,True,False,Pending owner review
-bain-hashmashos-yereim2-point8-degrees,twilight,Twilight Yereim 2.8° below horizon,Instant,,False,False,Pending owner review
+bain-hashmashos-yereim2-point8-degrees,twilight,Twilight Yereim 2.8° above horizon,Instant,,False,False,Pending owner review
 bain-hashmashos-yereim13-point5-minutes,twilight,Twilight Yereim 13.5 minutes,Instant,,True,False,Pending owner review
-bain-hashmashos-yereim2-point1-degrees,twilight,Twilight Yereim 2.1° below horizon,Instant,,False,False,Pending owner review
+bain-hashmashos-yereim2-point1-degrees,twilight,Twilight Yereim 2.1° above horizon,Instant,,False,False,Pending owner review
 tzais-geonim3-point7-degrees,nightfall,Nightfall Geonim 3.7° below horizon,Instant,,False,False,Pending owner review
 tzais-geonim3-point8-degrees,nightfall,Nightfall Geonim 3.8° below horizon,Instant,,False,False,Pending owner review
 tzais-geonim5-point95-degrees,nightfall,Nightfall Geonim 5.95° below horizon,Instant,,False,False,Pending owner review
@@ -182,11 +182,11 @@ mincha-gedola-grafixed-local-chatzos30-minutes,mincha-gedolah,Earliest Mincha Vi
 mincha-ketana-grafixed-local-chatzos-to-sunset,mincha-ketanah,Mincha ketanah Vilna Gaon Fixed local Chatzos To Sunset · Day: Fixed local Midday → Sunset (profile elevation policy),Instant,,True,False,Pending owner review
 plag-hamincha-grafixed-local-chatzos-to-sunset,plag,Plag Vilna Gaon Fixed local Chatzos To Sunset · Day: Fixed local Midday → Sunset (profile elevation policy),Instant,,True,False,Pending owner review
 tzais50-minutes,nightfall,Nightfall 50 minutes,Instant,,True,False,Pending owner review
-samuch-le-mincha-ketana-gra,mincha-ketanah,Before Mincha ketanah Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,False,Pending owner review
-samuch-le-mincha-ketana16-point1-degrees,mincha-ketanah,Before Mincha ketanah 16.1° below horizon · Day: Dawn 16.1° below horizon → Nightfall 16.1° below horizon,Instant,,False,False,Pending owner review
-samuch-le-mincha-ketana72-minutes,mincha-ketanah,Before Mincha ketanah 72 minutes · Day: Dawn 72 minutes → Nightfall 72 minutes,Instant,,True,False,Pending owner review
+samuch-le-mincha-ketana-gra,mincha-ketanah,Before Mincha ketanah Vilna Gaon · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
+samuch-le-mincha-ketana16-point1-degrees,mincha-ketanah,Before Mincha ketanah 16.1° below horizon · Day: Dawn 16.1° below horizon → Nightfall 16.1° below horizon,Instant,,False,True,Pending owner review
+samuch-le-mincha-ketana72-minutes,mincha-ketanah,Before Mincha ketanah 72 minutes · Day: Dawn 72 minutes → Nightfall 72 minutes,Instant,,True,True,Pending owner review
 polar-sunset-ben-ish-chai,sunset,Polar Sunset Ben Ish Chai,Instant,,True,False,Pending owner review
 polar-sunrise-ben-ish-chai,sunrise,Polar Sunrise Ben Ish Chai,Instant,,True,False,Pending owner review
-polar-plag-hamincha-ben-ish-chai,plag,Polar Plag Ben Ish Chai · Day: Sunrise → Sea Level Sunrise,Instant,,True,True,Pending owner review
+polar-plag-hamincha-ben-ish-chai,plag,Polar Plag Ben Ish Chai · Day: Polar sunrise at azimuth 90° → Polar sunset at azimuth 270°,Instant,,True,True,Pending owner review
 polar-start-of-day-teshuvos-vehanhagos,twilight,Polar Start Of Day Teshuvot Ve Hanhagot,Instant,,True,False,Pending owner review
-polar-plag-hamincha-teshuvos-vehanhagos,plag,Polar Plag Teshuvot Ve Hanhagot · Day: Sunrise (profile elevation policy) → Sunset (profile elevation policy),Instant,,True,True,Pending owner review
+polar-plag-hamincha-teshuvos-vehanhagos,plag,Polar Plag Teshuvot Ve Hanhagot · Day: Previous polar day boundary → Current polar day boundary,Instant,,True,True,Pending owner review

@@ -9,7 +9,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RedesignTest {
-    private val place = Place(id = "jerusalem", name = "Jerusalem", latitude = 31.778, longitude = 35.235, zoneId = "Asia/Jerusalem")
+    private val place = Place(id = "jerusalem", name = "Jerusalem", latitude = 31.778, longitude = 35.235, zoneId = "Asia/Jerusalem", holidayInIsrael = true)
     private val engine = CalculationEngine()
     private val chametz = "sof-zman-achilas-chametz-gra"
     private fun value(date: LocalDate, id: String, profile: Profile = Profile(), israel: Boolean = false) =
@@ -87,14 +87,15 @@ class RedesignTest {
         assertEquals(p.options, restored.profiles.single().options)
         assertEquals(data.settings.specialDayColors, restored.settings.specialDayColors)
     }
-    @Test fun repeatedHourTapPreservesItsActualInstantInTheEventEditor() {
+    @Test fun repeatedHourTapCreatesTheSameLocalRuleForBothClockPasses() {
         val zone = ZoneId.of("America/New_York")
         val later = Instant.parse("2026-11-01T06:00:00Z")
         val start = EventStart.at(later, zone)
         assertEquals(LocalTime.of(1, 0), start.time)
-        assertEquals(DstOverlapPolicy.LATER, start.overlapPolicy)
-        val event = Event(title = "Repeated hour", anchorDate = start.date.toString(), localTime = start.time.toString(), zoneId = zone.id, overlapPolicy = start.overlapPolicy)
-        assertEquals(later, OccurrenceEngine().occurrence(event, start.date, AppData()).start)
+        val event = Event(title = "Repeated hour", anchorDate = start.date.toString(), localTime = start.time.toString(), durationMinutes = 15, zoneId = zone.id)
+        val segments = OccurrenceEngine().expand(event, start.date, start.date.plusDays(1), AppData())
+        assertEquals(2, segments.size)
+        assertTrue(segments.any { it.start == later })
     }
 
     @Test fun candleDetailsShowTheEffectiveOffsetAndHolidayNightfallInputs() {

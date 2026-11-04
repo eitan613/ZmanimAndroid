@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 
 class ZmanimApplication : Application() {
+    val learning by lazy { com.example.zmanim.data.LearningSchedules(this) }
+    val elevation by lazy { com.example.zmanim.platform.ElevationLookup(this) }
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     lateinit var repository: AppRepository; private set
     lateinit var places: OfflinePlaces; private set

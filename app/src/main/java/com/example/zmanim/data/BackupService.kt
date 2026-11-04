@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 
 @Serializable
-data class BackupDocument(val format: String = "zmanim-backup", val version: Int = 1,
+data class BackupDocument(val format: String = "zmanim-backup", val version: Int = 2,
     val createdAt: String = Instant.now().toString(), val settings: AppSettings? = null,
     val profiles: List<Profile> = emptyList(), val places: List<Place> = emptyList(), val events: List<Event> = emptyList())
 data class BackupSelection(val settings: Boolean = true, val profiles: Boolean = true,
@@ -30,7 +30,7 @@ class BackupService {
     fun preview(text: String, existing: AppData): ImportPreview {
         require(text.toByteArray().size <= 20_000_000) { "Backup files must be smaller than 20 MB." }
         val doc = appJson.decodeFromString<BackupDocument>(text)
-        require(doc.format == "zmanim-backup" && doc.version == 1) { "This backup format or version is not supported." }
+        require(doc.format == "zmanim-backup" && doc.version == 2) { "This backup format or version is not supported." }
         require(doc.profiles.size <= 1000 && doc.places.size <= 10000 && doc.events.size <= 100000) { "This backup has too many records." }
         require(doc.profiles.map { it.id }.distinct().size == doc.profiles.size &&
             doc.places.map { it.id }.distinct().size == doc.places.size && doc.events.map { it.id }.distinct().size == doc.events.size) { "The backup contains duplicate IDs." }

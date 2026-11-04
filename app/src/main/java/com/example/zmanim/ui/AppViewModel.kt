@@ -63,7 +63,12 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
                         val month = engine.month(date, data.settings, locale)
                         val from = minOf(month.days.first().date, date.minusDays(7))
                         val end = maxOf(month.days.last().date.plusDays(1), date.plusDays(8))
-                        val local = data.events.flatMap { OccurrenceEngine().expand(it, from, end, data) }
+                        val local = data.events.flatMap { event ->
+                            val lead = event.durationMinutes / 1440 + 2
+                            OccurrenceEngine().expand(event, from.minusDays(lead), end, data)
+                        }.filter { occurrence ->
+                            occurrence.date >= from || occurrence.end?.let { it > from.atStartOfDay(data.place()?.zone() ?: ZoneId.systemDefault()).toInstant() } == true
+                        }
                         var error: String? = null
                         val device = try {
                             if (data.settings.showDeviceEvents) app.calendars.instances(from.atStartOfDay(ZoneOffset.UTC).toInstant().minusSeconds(86400),
@@ -111,6 +116,28 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
     }
     fun settings(change: (AppSettings) -> AppSettings) = act { repository.settings(change) }
     private var pendingFollow: Boolean? = null
+    private var acquiredFollow = false
+    private val _zoneChoice = MutableStateFlow<Place?>(null)
+    val zoneChoice = _zoneChoice.asStateFlow()
+    fun cancelZoneChoice() { _zoneChoice.value = null }
+    fun confirmDeviceZone(zone: String) = act {
+        val fix = _zoneChoice.value ?: return@act
+        ZoneId.of(zone)
+        saveDeviceFix(fix.copy(zoneId = zone, zoneConfirmed = true, zoneUserSelected = true), acquiredFollow)
+        _zoneChoice.value = null
+    }
+    private suspend fun saveDeviceFix(fix: Place, follow: Boolean) {
+        repository.update { data ->
+            if (follow) data.copy(devicePlace = fix, settings = data.settings.copy(location = LocationBinding(LocationMode.FOLLOW)))
+            else {
+                val snapshot = fix.copy(id = AppRepository.SNAPSHOT_ID, name = "Current location")
+                data.copy(devicePlace = fix, places = data.places.filterNot { it.id == snapshot.id } + snapshot,
+                    settings = data.settings.copy(location = LocationBinding(LocationMode.SAVED, snapshot.id)))
+            }
+        }
+    }
+    fun stopFollowing() = act { repository.data.devicePlace?.let { saveDeviceFix(it, false) } }
+
     private val _locationBusy = MutableStateFlow(false)
     val locationBusy = _locationBusy.asStateFlow()
     private val _locationError = MutableStateFlow<String?>(null)
@@ -132,21 +159,20 @@ class AppViewModel(application: Application, private val saved: SavedStateHandle
         _locationBusy.value = true; _locationError.value = null
         viewModelScope.launch {
             try {
-                val fix = app.location.refresh()
-                repository.update { data ->
-                    if (follow) data.copy(devicePlace = fix, settings = data.settings.copy(location = LocationBinding(LocationMode.FOLLOW)))
-                    else {
-                        val snapshot = fix.copy(id = newId(), name = "Current location", obtainedAt = null, accuracyMeters = null)
-                        data.copy(devicePlace = fix, places = data.places + snapshot, settings = data.settings.copy(location = LocationBinding(savedId = snapshot.id)))
-                    }
-                }
+                val raw = app.location.refresh()
+                val fix = retainNearbyZoneChoice(raw, repository.data.devicePlace)
+                if (!fix.zoneConfirmed) {
+                    repository.update { it.copy(devicePlace = fix) }
+                    acquiredFollow = follow
+                    _zoneChoice.value = fix
+                } else saveDeviceFix(fix, follow)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { _locationError.value = e.message ?: "No location fix was obtained. Try again outdoors or choose a saved place." }
             finally { _locationBusy.value = false }
         }
     }
     suspend fun refreshLocation() {
-        val place = app.location.refresh()
+        val place = retainNearbyZoneChoice(app.location.refresh(), repository.data.devicePlace)
         repository.update { it.copy(devicePlace = place) }
     }
 }

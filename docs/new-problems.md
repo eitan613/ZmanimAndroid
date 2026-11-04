@@ -1,9 +1,65 @@
 # Implementation checklist: calendar, zmanim, locations, events, and widgets
 
 This replaces the original problem notes with the agreed behavior and the plan
-for implementing and verifying every item. All app implementation below is
-pending. Check an item only after implementing and verifying it; agreement on a
-decision alone does not mean the work is complete.
+for implementing and verifying every item. The implementation pass is recorded
+below. Checked items have implementation and automated/emulator evidence;
+unchecked items identify remaining source validation or physical-device review.
+Agreement on a decision alone does not mean the work is complete.
+
+## Implementation pass — 4 November 2026
+
+Implemented shared app location, GPS timezone recovery, reusable current-location
+snapshots, normalized/ranked city search, reviewed locality overrides, optional
+cached terrain lookup, independent explicit elevation methods, profile display
+names, conditional calculation options, per-method definitions, offline Help and
+license texts, calendar direction/layout/theme changes, calendar/time pickers,
+automatic clock-change intervals, shared occurrence formatting, event basics,
+direct profile reminders and genuine ringing alarms, date-widget variants,
+scrolling per-row native countdowns, learning rows, and centralized in-app launches.
+Minute rounding is hidden while Show seconds is enabled, retaining its saved value.
+Current-format backups are version 2; obsolete test backup formats are rejected.
+
+The city review covers all 127 PS-classified records in the packaged snapshot.
+Ten explicit stable-ID corrections were matched to CBS 2023 names and coordinates;
+nearby Palestinian places remain unchanged. See [locality-audit.csv](locality-audit.csv)
+and the bundled `locality-corrections.json` for provenance. An erroneous Betar
+Illit alias on Battir is excluded from search. The city snapshot hash is bundled.
+
+Learning uses pinned Hebcal 6.13.1 reference tables for 2020–2040, with civil-day
+rollover. Dirshu Halacha is a finite third-cycle table ending 31 August 2027.
+Bavli, Vilna Yerushalmi, Mishna, Perek, Nach, Rambam one/three, Dirshu Amud,
+Chafetz Chaim, Tanya and Dirshu Halacha are exposed with source/cycle metadata.
+Oz V’hadar has its own published pagination: 4,188 daily references from Kollel
+Iyun Hadaf’s cycles 11–12, 14 November 2022 through 2 May 2034. Both cycles were
+checked for consecutive dates, matching pagination and cycle-boundary continuity.
+Sample readings are checked against Sefaria and source-cycle anchors; see
+[learning-independent-references.json](learning-independent-references.json).
+Oraysa is a finite official Yevamot-calendar table covering 23 November 2025
+through 7 November 2026, including daily and weekend review references. All 250
+weekday readings were checked against the positioned PDF cells. An unofficial
+calendar was rejected because its current amud differed from the publisher's.
+Later Oraysa dates show Unavailable until a new publisher table is reviewed.
+Likutei Halachos and Dirshu Chevras Shas remain unexposed until
+an identified source table/cycle has been validated. They were not substituted
+with similarly named schedules. Dirshu’s public Chevras Shas download currently
+links to 5783 tables; its rules skip bein hazmanim, so an uninterrupted amud
+formula would be incorrect. A current complete table is still needed. Likutei
+Halachos requires a validated publisher pagination/cycle table, not only isolated
+weekly bulletin entries.
+
+User clarification: skip non-Dirshu Amud Yomi, Halacha Yomi, Maharan,
+Yerushalmi Meshulav and Dirshu Mussar. These five are outside this pass.
+
+The 24 px small-month status-icon prototype was inspected. Its 5 px month glyphs
+are too small for dependable reading, so the shipped icon keeps a clear day;
+the drawer entry shows the full date and expandable date/location hierarchy.
+The prototype is reproducible with `tools/PreviewHebrewDateIcon.java`.
+
+Physical-phone location/keyboard/launch reports, locked-device/Doze/reboot alarm
+behavior, and actual launcher resizing across vendors still require physical
+verification. Optional elevation-service failure/cache cases need further device
+coverage. Method wording remains an initial terminology iteration. These are not
+closed by the emulator results below.
 
 ## Scope and settled decisions
 
@@ -16,7 +72,8 @@ decision alone does not mean the work is complete.
   installations can be reset when necessary. Current event/profile relationships
   and current-format backup/import must still be correct.
 - Use HebDate, installed by the user on the local emulator, for direct calendar
-  layout comparisons. Its presence was reported by the user; comparison is pending.
+  layout comparisons. Cheshvan and six-row Tishrei references were captured and compared
+  at the same emulator width/font scale; see `docs/qa`.
 - Location belongs to the app, independently of profiles. Widgets use app location.
 - Hiding a zman group suppresses its notifications and alarms.
 - Add real alarms as an alternative to notifications directly for zmanim.
@@ -48,7 +105,7 @@ another root is specified.
 
 ## Profiles, Help, and notices
 
-- [ ] **P01 — Keep profiles and explain how to use them.**
+- [x] **P01 — Keep profiles and explain how to use them.**
   - Decision: a profile saves selected zmanim, ordering, group visibility, custom
     calculations, display names, calculation options, and reminders. Location and
     general display/calendar preferences are separate.
@@ -67,7 +124,7 @@ another root is specified.
     independent; switching updates the expected surfaces; events retain their
     profile; duplication copies names and remaps custom references correctly.
 
-- [ ] **P02 — Add fully in-app, offline Help.**
+- [x] **P02 — Add fully in-app, offline Help.**
   - Decision: Help has no dependency on a hosted website.
   - Plan: add a main-menu Help destination with bundled English/Hebrew topics:
     getting started, profiles, locations/timezones/elevation, zmanim/calculation
@@ -79,7 +136,7 @@ another root is specified.
   - Verify: all topics open in airplane mode; contextual links and Back work;
     both interface directions and large text remain usable.
 
-- [ ] **P03 — Move source and library acknowledgements to their proper place.**
+- [x] **P03 — Move source and library acknowledgements to their proper place.**
   - Answer: “Location credits” means source acknowledgements, not money, tokens,
     quotas, or a paid feature. Retain the current sources' required notices.
   - Decision: keep GeoNames and current timezone boundaries; replacing them solely
@@ -95,7 +152,7 @@ another root is specified.
 
 ## Location management and calculation correctness
 
-- [ ] **L01 — Make app location accessible wherever it matters.**
+- [x] **L01 — Make app location accessible wherever it matters.**
   - Decision: location serves calendar sunset behavior, zmanim, relevant events,
     widgets, and date notifications. It is not owned by a profile.
   - Plan: expose general location management in settings and shortcuts from calendar
@@ -125,7 +182,7 @@ another root is specified.
   - Verify: screenshot coordinate, unique-zone/no-match results, unmatched device
     zone, manual correction, and travel. Recheck on the physical phone.
 
-- [ ] **L03 — Prevent duplicate “Current location” saved places.**
+- [x] **L03 — Prevent duplicate “Current location” saved places.**
   - Finding: each successful snapshot currently gets a fresh ID and is appended.
   - Plan: update/reuse the current snapshot on repeated requests and guard against
     simultaneous acquisition. Use the same policy when turning following off.
@@ -133,7 +190,7 @@ another root is specified.
   - Verify: repeated requests and follow-to-snapshot changes leave one current
     snapshot, with a clear active selection and independent named places.
 
-- [ ] **L04 — Make city search tolerate spelling and punctuation variants.**
+- [x] **L04 — Make city search tolerate spelling and punctuation variants.**
   - Finding: “Givat Zeev” and “גבעת זאב” exist, but basic substring matching does
     not reliably match “Givat Zev” or apostrophe variants.
   - Plan: retain useful source aliases; normalize case, apostrophes, whitespace,
@@ -152,7 +209,7 @@ another root is specified.
   - Verify: search/selection work without dismissing the keyboard on the emulator
     and physical phone, including compact viewports and large text.
 
-- [ ] **L06 — Correct affected localities systematically.**
+- [x] **L06 — Correct affected localities systematically.**
   - Finding: bundled Givat Zeev and Beit El have PS/Asia/Hebron; Efrata has
     PS/Asia/Jerusalem; Ariel already has IL/Asia/Jerusalem. Display classification,
     civil timezone, and holiday schedule therefore need separate checks.
@@ -187,7 +244,7 @@ another root is specified.
   - Verify: successful/offline/error/rate-limit/no-data lookup, cache reuse,
     coordinate edits, manual overrides, sea-level and below-sea-level locations.
 
-- [ ] **C01 — Separate explicit adjusted sunrise/sunset from the profile toggle.**
+- [x] **C01 — Separate explicit adjusted sunrise/sunset from the profile toggle.**
   - Finding: height is currently zeroed when useElevation is off, making explicit
     elevation sunrise/sunset behave as sea-level methods too.
   - Decision: pass supported location height, when available, to explicit adjusted
@@ -211,7 +268,7 @@ another root is specified.
     positive, missing, negative height, direct/derived/custom methods. Equivalent
     queries agree in app, events, reminders, and widgets.
 
-- [ ] **C02 — Explain Ateret Torah and hide its offset when unused.**
+- [x] **C02 — Explain Ateret Torah and hide its offset when unused.**
   - Answer: this minutes-after-sunset boundary affects the Ateret Torah family,
     including its temporal hour and derived Shema, tefillah, Mincha, and plag.
     It is separate from candle lighting.
@@ -244,7 +301,7 @@ another root is specified.
   - Verify: both interface languages crossed with both label preferences; decimal
     angles, signed offsets, parentheses, mixed names, and narrow rows.
 
-- [ ] **T02 — Rename existing zmanim within each profile.**
+- [x] **T02 — Rename existing zmanim within each profile.**
   - Decision: a per-profile display name overrides the normal label wherever that
     profile supplies the zman, without changing its calculation.
   - Plan: store overrides by stable method ID; add Rename/Reset name actions.
@@ -255,7 +312,7 @@ another root is specified.
   - Verify: two profiles can name the same method differently without affecting
     times, formulas, selection, or reminder bindings; reset and mixed names work.
 
-- [ ] **T03 — Explain every calculation method usefully.**
+- [x] **T03 — Explain every calculation method usefully.**
   - Decision: use pinned KosherJava docblocks as source material, then write reviewed
     in-app prose rather than displaying raw Java documentation.
   - Plan: extend metadata with source method, definition, boundaries, units,
@@ -274,7 +331,7 @@ another root is specified.
 
 ## Calendar layout, navigation, and display
 
-- [ ] **U01 — Fix month-cell text through direct HebDate comparison.**
+- [x] **U01 — Fix month-cell text through direct HebDate comparison.**
   - History: unrestricted wrapping split words; forcing one line truncated them.
     Simply reverting either change is insufficient.
   - Plan: compare the same month/long labels in both apps on the same emulator
@@ -291,7 +348,7 @@ another root is specified.
     compact/standard widths, and larger fonts. Compare rendered grids with
     HebDate; an off-cell detail view alone does not satisfy this item.
 
-- [ ] **U02 — Make bottom navigation selection obvious in dark mode.**
+- [x] **U02 — Make bottom navigation selection obvious in dark mode.**
   - Finding: selection logic exists but the dark-mode indicator is hard to see.
   - Plan: use one authoritative view state for rendering and selection; strengthen
     indicator, icon, and label contrast.
@@ -299,7 +356,7 @@ another root is specified.
   - Verify: all five destinations after switching, settings, recreation, and
     widget launches, in both themes.
 
-- [ ] **U03 — Give Settings its own navigation context.**
+- [x] **U03 — Give Settings its own navigation context.**
   - Plan: show Settings as a standalone destination with Back and no calendar
     bottom bar. Back returns to the invoking screen and state.
   - Plan: prevent restored calendar navigation from restoring Settings as calendar.
@@ -308,7 +365,7 @@ another root is specified.
   - Verify: calendar/zmanim → settings → back, subsequent tab switches,
     recreation, and widget launches with Settings last open.
 
-- [ ] **U04 — Automatically choose calendar direction by calendar type.**
+- [x] **U04 — Automatically choose calendar direction by calendar type.**
   - Decision: exactly three choices: Automatic (Gregorian LTR, Hebrew RTL),
     Always left to right, Always right to left. Default Automatic; no need to
     preserve old booleans.
@@ -318,12 +375,12 @@ another root is specified.
   - Verify: both calendars, all three choices, both interface languages,
     Sunday/Monday starts, and both swipe-axis configurations.
 
-- [ ] **U05 — Spell out שבת in the Saturday header.**
+- [x] **U05 — Spell out שבת in the Saturday header.**
   - Decision: initial wording is שבת rather than narrow ש׳; ש״ק was also acceptable.
   - Plan: use a controlled Hebrew weekday formatter and reuse where appropriate.
   - Verify: no splitting/cropping in narrow columns, both directions, and widgets.
 
-- [ ] **U06 — Show special-day color controls only in effective light mode.**
+- [x] **U06 — Show special-day color controls only in effective light mode.**
   - Decision: a dedicated dark special-day palette is outside this pass.
   - Plan: hide toggle/category controls in effective dark mode, including System
     mode. Apply special-day tints only in light mode; retain the chosen preference
@@ -332,14 +389,14 @@ another root is specified.
   - Verify: Light/Dark/System transitions, matching controls/rendering, and
     readable selected/today indicators.
 
-- [ ] **U07 — Distinguish the next zman from timeline day headings.**
+- [x] **U07 — Distinguish the next zman from timeline day headings.**
   - Finding: their dark-theme surfaces currently use the same color.
   - Plan: neutral heading surface/divider; distinct next-zman accent, border/marker,
     and text label. Preserve past-row dimming.
   - Touchpoints: ui/ZmanimScreen.kt, theme colors.
   - Verify: both themes and large text, including a distinction beyond color.
 
-- [ ] **U08 — Count down to all upcoming zmanim, including seconds.**
+- [x] **U08 — Count down to all upcoming zmanim, including seconds.**
   - Answer: current “Show time remaining” affects only the next zman and omits
     seconds for targets over an hour away.
   - Plan: rename to “Show countdowns”; show it on all visible future timed rows.
@@ -353,7 +410,7 @@ another root is specified.
 
 ## Event creation, recurrence, and display
 
-- [ ] **E01 — Simplify the event editor.**
+- [x] **E01 — Simplify the event editor.**
   - Plan: organize title, date, time, repeat, optional details/reminders. Reveal
     advanced timezone, calculation place/profile, guests/export only when useful.
   - Plan: use a proper time picker respecting 12/24-hour preference with optional
@@ -364,7 +421,7 @@ another root is specified.
   - Verify: timed/all-day/zman/Hebrew/recurring create/edit flows have relevant
     controls and preserve drafts.
 
-- [ ] **E02 — Only show recurrence calendar for repeating events.**
+- [x] **E02 — Only show recurrence calendar for repeating events.**
   - Plan: put Hebrew/Gregorian repeat-calendar choice in the enabled Repeat
     section; show interval/end/missing-day/Adar controls only when applicable.
   - Plan: separate input calendar mode and Hebrew event-day semantics from
@@ -374,7 +431,7 @@ another root is specified.
   - Verify: repeat on/off, monthly/yearly missing days, ordinary/leap Adar,
     and non-recurring Hebrew timed/all-day events.
 
-- [ ] **E03 — Provide real Gregorian and Hebrew date pickers.**
+- [x] **E03 — Provide real Gregorian and Hebrew date pickers.**
   - Decision: open the chosen calendar's picker, not the old Go to date dropdown/
     text-field form.
   - Plan: build reusable Gregorian/Hebrew month pickers with year/month navigation,
@@ -386,7 +443,7 @@ another root is specified.
   - Verify: conversion both ways, leap years/short months, initial selection,
     cancellation, and edit/save round trips.
 
-- [ ] **E04 — Handle clock changes automatically, without policy controls.**
+- [x] **E04 — Handle clock changes automatically, without policy controls.**
   - Decision: events occupy their scheduled local start/end interval. A jump over
     the whole interval skips it; a jump over the start leaves any remaining
     interval active; a backward jump can enter the interval again.
@@ -404,7 +461,7 @@ another root is specified.
     transition/midnight, recurrence, reminders, and device-calendar export.
     This adds no clock-change configuration burden to event creation.
 
-- [ ] **E05 — Use human-friendly occurrence previews and details.**
+- [x] **E05 — Use human-friendly occurrence previews and details.**
   - Plan: replace raw ISO/zoned timestamps with shared localized date/time/range
     formatting, 12/24-hour preference, Hebrew dates where useful, “All day,” and
     relevant timezone context.
@@ -416,7 +473,7 @@ another root is specified.
   - Verify: repeating/one-off/all-day/sunset/other-zone/clock-change previews
     and incomplete drafts show useful text, not debug timestamps.
 
-- [ ] **E06 — Explain “Calendar destination” and remove one-item dropdowns.**
+- [x] **E06 — Explain “Calendar destination” and remove one-item dropdowns.**
   - Answer: this selects app storage or a writable Android calendar. Only app
     storage appears when no writable calendars are available.
   - Plan: rename to “Save to.” Show “Saved in this app” and optional calendar
@@ -430,19 +487,20 @@ another root is specified.
   - Verify: absent access, no/one/multiple writable calendars, read-only calendars,
     local saves, and managed recurring exports.
 
-- [ ] **E07 — Show optional event basics inside month cells.**
+- [x] **E07 — Show optional event basics inside month cells.**
   - Decision: add an event-basics setting instead of always showing only a count.
   - Plan: show compact title/time rows with “+N more” overflow when enabled and
     compact count/dot when disabled. Coordinate with U01's space budget.
   - Plan: include local/enabled device occurrences, count multi-day overlaps
     correctly, and avoid duplicating managed exports.
   - Touchpoints: domain/Models.kt, ui/SettingsScreen.kt, ui/CalendarScreen.kt.
+  - Implementation: day overlap uses actual intervals, including multi-day provider all-day events.
   - Verify: empty/busy days, long titles, all-day/multi-day events, exports,
     both calendars, compact sizes, and the setting on/off.
 
 ## Notifications, real alarms, and the status-bar date
 
-- [ ] **R01 — Configure zman reminders directly, without events.**
+- [x] **R01 — Configure zman reminders directly, without events.**
   - Answer: existing setup is in Profile editor → Display order and reminders;
     0 means at the zman. Exact-alarm permission does not create a reminder.
   - Plan: add bell actions on rows/details and a direct active-profile reminder
@@ -509,7 +567,7 @@ another root is specified.
   - Verify: actual 1×1/2×1 placement/resizing/previews, long months, large text,
     both themes, and all opening destinations.
 
-- [ ] **W02 — Make 2×1 date widgets consistent and complementary.**
+- [x] **W02 — Make 2×1 date widgets consistent and complementary.**
   - Decision: both show weekday. Hebrew-primary shows Hebrew day/month/year,
     Gregorian year after weekday, and Gregorian dd/mm. Gregorian-primary shows
     its main date and a smaller Hebrew date rather than repeating Gregorian
@@ -519,7 +577,7 @@ another root is specified.
   - Verify: exact information above, narrow/tall/wide sizes, Hebrew leap months,
     label languages/themes, and midnight/sunset transitions.
 
-- [ ] **W03 — Follow app location in every widget.**
+- [x] **W03 — Follow app location in every widget.**
   - Decision: remove per-widget saved/follow-device location selection.
   - Plan: resolve timezone/sunset/calculation inputs from app location. If required
     setup is missing, link directly to “Set app location” and return/update
@@ -531,7 +589,7 @@ another root is specified.
   - Verify: all widgets follow saved/follow-device changes; setup return works;
     missing/stale location and unavailable sunset are understandable.
 
-- [ ] **W04 — Scroll the next zman with the remaining widget rows.**
+- [x] **W04 — Scroll the next zman with the remaining widget rows.**
   - Finding: the first row is deliberately outside the scrolling list.
   - Plan: put all zman rows in one list, preserving a next-zman marker without
     pinning its card and keeping compact-height layouts usable.
@@ -539,7 +597,7 @@ another root is specified.
   - Verify: first row scrolls offscreen, later rows are reachable, and the next
     marker updates as targets pass.
 
-- [ ] **W05 — Count down to every widget zman, including seconds.**
+- [x] **W05 — Count down to every widget zman, including seconds.**
   - Plan: rename the option for all upcoming rows; use a native RemoteViews
     chronometer per eligible row. Adapt compact layouts/visible row count without
     per-second background workers or full-widget updates.
@@ -576,26 +634,26 @@ another root is specified.
   Each requested schedule remains unchecked until source, cycle, implementation,
   and widget output are verified:
 
-  - [ ] Daf Yomi (Bavli; retain and verify).
-  - [ ] Yerushalmi Vilna.
-  - [ ] Yerushalmi Oz V'hadar.
-  - [ ] Yerushalmi Meshulav.
-  - [ ] Amud Yomi (identify the specific non-Dirshu cycle).
-  - [ ] Amud Yomi Dirshu.
-  - [ ] Oraysa.
-  - [ ] Nach Yomi.
-  - [ ] Mishna Yomi.
-  - [ ] Mishna Perek Yomi.
-  - [ ] Halacha Yomi (identify the specific program).
-  - [ ] Rambam One.
-  - [ ] Rambam Three.
-  - [ ] Tanya.
+  - [x] Daf Yomi (Bavli; retain and verify).
+  - [x] Yerushalmi Vilna.
+  - [x] Yerushalmi Oz V'hadar (published cycles 11–12; finite coverage above).
+  - [ ] ~~Yerushalmi Meshulav.~~ — skipped at the user’s request.
+  - [ ] ~~Amud Yomi (identify the specific non-Dirshu cycle).~~ — skipped at the user’s request.
+  - [x] Amud Yomi Dirshu.
+  - [x] Oraysa (finite official Yevamot calendar; expires 7 November 2026).
+  - [x] Nach Yomi.
+  - [x] Mishna Yomi.
+  - [x] Mishna Perek Yomi.
+  - [ ] ~~Halacha Yomi (identify the specific program).~~ — skipped at the user’s request.
+  - [x] Rambam One.
+  - [x] Rambam Three.
+  - [x] Tanya.
   - [ ] Likutei Halachos.
-  - [ ] Maharan (confirm the exact program/text meant by this screenshot label).
-  - [ ] Chafetz Chaim.
+  - [ ] ~~Maharan (confirm the exact program/text meant by this screenshot label).~~ — skipped at the user’s request.
+  - [x] Chafetz Chaim.
   - [ ] Dirshu Chevras Shas.
-  - [ ] Dirshu Halacha.
-  - [ ] Dirshu Mussar.
+  - [x] Dirshu Halacha.
+  - [ ] ~~Dirshu Mussar.~~ — skipped at the user’s request.
 
 - [ ] **W07 — Fix events-widget launches and opening the wrong app.**
   - Finding: provider-event rows deliberately use external ACTION_VIEW. The exact
@@ -618,31 +676,66 @@ another root is specified.
 
 ## Shared verification and completion
 
-- [ ] Update model validation, current-format backup/import, profile duplication,
+- [x] Update model validation, current-format backup/import, profile duplication,
   dependency checks, and all consumers. Avoid obsolete-test-format compatibility.
-- [ ] Add meaningful domain coverage for zone/locality resolution, elevation,
+- [x] Add meaningful domain coverage for zone/locality resolution, elevation,
   aliases, Hebrew recurrence/date conversion, clock-change intervals, learning
   cycles, and reminder/alarm suppression/reconciliation.
-- [ ] Run focused integration checks for calendar storage/export, actual alerts,
+- [x] Run focused integration checks for calendar storage/export, actual alerts,
   widget actions, navigation, and permission recovery.
-- [ ] Compare live calendar layout with HebDate on the emulator; review themes,
+- [x] Compare live calendar layout with HebDate on the emulator; review themes,
   calendar modes, interface/label language combinations, widths, large text,
   and keyboard-open states.
 - [ ] Verify original physical-phone location, keyboard, and widget-launch reports;
   prior emulator passes do not close these reports.
 - [ ] Check actual launcher sizes 1×1, 2×1, and larger; verify rollover, active
   profile/app location changes, and boundary refreshes.
-- [ ] Verify Help/notices in airplane mode and reconcile wording with final behavior.
-- [ ] Run debug/unit/lint, connected-device checks, and release compilation after
+- [x] Verify Help/notices in airplane mode and reconcile wording with final behavior.
+- [x] Run debug/unit/lint, connected-device checks, and release compilation after
   implementation. Record actual results and remaining limitations.
 
-Planned commands (not run as part of writing this document):
+Verification commands (run during implementation; final results recorded below):
 
 ~~~sh
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 ./gradlew :app:connectedDebugAndroidTest
 ./gradlew :app:assembleRelease
 ~~~
+
+## Verification results — 4 November 2026
+
+- `assembleDebug`, `assembleDebugAndroidTest`, `testDebugUnitTest`, `lintDebug`
+  and `assembleRelease`: passed offline with the Android Studio JDK. 49 unit
+  tests passed, zero failures; lint has zero errors. Release output is unsigned.
+- Final API 36 Pixel 7 emulator run via `am instrument -w -r`: **37 tests passed**
+  in 109 seconds. This includes provider record adoption/reminder preservation,
+  real alarm audio playback and snooze/suppression, GPS snapshot reuse, city
+  search with the keyboard open, date navigation/recreation, learning source
+  fixtures/finite coverage, and a real widget host with per-row chronometers.
+- Calendar review includes five-row Cheshvan and six-row Tishrei, both calendars,
+  light/dark, 900 × 1600 and 1080 × 2400, and font scale 1.7. At larger text sizes
+  date numbers stack when needed. Compact grids can scroll to retain readable
+  labels. Reference and final representative screenshots are in `docs/qa`.
+- Both Hebrew and Gregorian date widgets were rendered at 110 × 56, 110 × 110,
+  180 × 72 and 120 × 180 dp in both themes. Checks cover actual line height and
+  primary-date ellipsis, in addition to view bounds. Short widgets use measured
+  day text beside the supporting dates.
+- Airplane mode with Wi-Fi and mobile data disabled: all three `NewProblemsUiTest`
+  checks passed, including bundled Help/About and keyboard-open offline city search.
+  Original connectivity was restored afterward.
+- Manual Settings check: Minute rounding and its explanation are visible with
+  Show seconds off and absent with it on; the saved rounding value is retained.
+- Generated learning data: **81,841 reference rows across 13 programs**, sorted
+  by date, without duplicate date/provider keys; every provider's first/last row
+  matches its published coverage metadata. Oz V’hadar has 4,188 source rows;
+  Oraysa has 350 days with all 250 weekday readings checked against its PDF.
+- The emulator's low free-space reserve blocked one Gradle APK install despite
+  Gradle reporting success. Final APKs were installed explicitly with a temporary
+  reserve adjustment, restored immediately; the final result above is from the
+  live instrumentation output, not stale Gradle reports. No other app was removed.
+
+Physical-device checks and the two unvalidated learning programs remain open as
+listed above. Emulator results do not close the original physical-phone reports.
 
 ## Reference material
 

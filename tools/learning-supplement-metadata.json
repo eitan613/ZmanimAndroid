@@ -1,0 +1,47 @@
+{
+  "providers": [
+    {
+      "id": "yerushalmi-oz",
+      "schedule": "oz-vhadar-published-cycles-11-12",
+      "en": "Yerushalmi · Oz V’hadar",
+      "he": "ירושלמי · עוז והדר",
+      "cycle": "Published Oz V’hadar pagination, cycles 11–12; 2,094 consecutive civil days per published cycle; no holiday skips in these source tables. Distinct from Vilna and Schottenstein.",
+      "validFrom": "2022-11-14",
+      "validThrough": "2034-05-02",
+      "source": "Kollel Iyun Hadaf / dafyomi.co.il",
+      "version": "Published cycles 11–12 · snapshot 2026-11-04",
+      "sources": [
+        {
+          "url": "https://www.dafyomi.co.il/calendars/calendaryeruoz11heb-cycle.htm",
+          "sha256": "475b349ff88132669b6ffe09d92f629f60f37429a0ed7503d2df09b5ddca80a2",
+          "cycle": 11,
+          "records": 2094
+        },
+        {
+          "url": "https://www.dafyomi.co.il/calendars/calendaryeruoz12heb-cycle.htm",
+          "sha256": "435840591bdd292b87f895b9148bf6d9306078d69e724653f40cfcab405ffd14",
+          "cycle": 12,
+          "records": 2094
+        }
+      ]
+    },
+    {
+      "id": "oraysa",
+      "en": "Oraysa · Amud V’chazara",
+      "he": "אורייתא · עמוד וחזרה",
+      "cycle": "Finite published Yevamot calendar with bordering Chagigah/Ketubot readings. New amud Sunday–Thursday, previous-amud review; Friday reviews Sunday/Monday, Shabbat Tuesday–Thursday. Includes holidays as printed; no extrapolation after source coverage.",
+      "validFrom": "2025-11-23",
+      "validThrough": "2026-11-07",
+      "source": "Oraysa official printed calendar",
+      "version": "Yevamot 2025–2026 · snapshot 2026-11-04",
+      "sources": [
+        {
+          "url": "https://dev.oraysa.org/_files/ugd/4323da_75e996c05d904bfca2643c55d3a1e82b.pdf",
+          "sha256": "b3a55d5158038a77a6a7e31a84b2b51a16e846315f27c9520696aca26d42721a",
+          "records": 350,
+          "validatedWeekdays": 250
+        }
+      ]
+    }
+  ]
+}

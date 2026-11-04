@@ -9,6 +9,7 @@ import kotlin.math.*
 class ZmanMethod(
     val id: String, val group: String, val label: String, val isDuration: Boolean,
     val needsAteretOffset: Boolean = false, val needsCandleOffset: Boolean = false, val usesElevation: Boolean = false, val supportsHalfDays: Boolean = false,
+    val explicitElevation: Boolean = false, val sourceMethod: String = "", val sourceDefinition: String = "", val hebrewLabel: String = "", val definition: String = "",
     val evaluate: (ComprehensiveZmanimCalendar) -> Any?,
 )
 
@@ -31,13 +32,13 @@ class CalculationEngine {
     fun calculate(query: CalculationQuery): List<CalculatedZman> {
         val p = query.profile
         val place = query.place
-        val elevationError = if (p.options.useElevation) when {
-            place.elevation == null -> "Elevation is required by this profile. Edit the location or disable elevation."
-            place.elevation < 0 -> "The calculation library does not support below-sea-level elevation. Disable elevation for this location."
+        val elevationError = when {
+            place.elevation == null || (place.elevationLatitude != null && (place.elevationLatitude != place.latitude || place.elevationLongitude != place.longitude)) -> "This method requires location height. Edit the location, choose a sea-level method, or disable elevation for other supported zmanim."
+            place.elevation < 0 -> "The calculation library does not support below-sea-level adjustment. Choose a sea-level method or disable elevation for other supported zmanim."
             else -> null
-        } else null
+        }
         val calendar = ComprehensiveZmanimCalendar(GeoLocation(place.name, place.latitude, place.longitude,
-            if (p.options.useElevation) (place.elevation ?: 0.0).coerceAtLeast(0.0) else 0.0, place.zone())).apply {
+            place.elevation?.takeIf { it >= 0.0 } ?: 0.0, place.zone())).apply {
             localDate = query.date
             isUseElevation = p.options.useElevation
             isUseAstronomicalChatzos = p.options.astronomicalChatzos
@@ -61,7 +62,7 @@ class CalculationEngine {
                 } else if (method?.needsCandleOffset == true && query.date.dayOfWeek != DayOfWeek.FRIDAY && jewishDay.isAssurBemelacha) {
                     p.options.candleLightingNightfallId?.let { evaluate(it) }
                         ?: CalculationValue.Unavailable("Choose a nightfall method for holiday candle lighting in this profile.")
-                } else if (elevationError != null && method?.usesElevation == true) {
+                } else if (elevationError != null && (method?.explicitElevation == true || p.options.useElevation && method?.usesElevation == true)) {
                     CalculationValue.Unavailable(elevationError)
                 } else if (method != null) {
                     when {
@@ -70,7 +71,7 @@ class CalculationEngine {
                         else -> when (val value = method.evaluate(calendar)) {
                             is Instant -> CalculationValue.Time(value)
                             is Duration -> CalculationValue.Length(value)
-                            else -> if (method.group == "lunar") CalculationValue.NotApplicable else CalculationValue.Unavailable("The required solar or lunar event is not available for this date and location.")
+                            else -> if (method.group == "lunar" || method.id.startsWith("polar-")) CalculationValue.NotApplicable else CalculationValue.Unavailable("The required solar or lunar event is not available for this date and location.")
                         }
                     }
                 } else if (custom != null && custom.references().any { evaluate(it) == CalculationValue.NotApplicable }) {
@@ -117,7 +118,7 @@ class CalculationEngine {
         return query.methodIds.distinct().map { id ->
             val custom = p.custom.find { it.id == id }
             val method = MethodCatalog.byId[id]
-            val label = custom?.name ?: method?.let { effectiveMethodDescription(it, p) } ?: "Missing calculation"
+            val label = p.displayNames[id] ?: custom?.name ?: method?.let { effectiveMethodDescription(it, p) } ?: "Missing calculation"
             val holidayNightfall = method?.needsCandleOffset == true && query.date.dayOfWeek != DayOfWeek.FRIDAY && jewishDay.isAssurBemelacha
             val effectiveId = if (holidayNightfall) p.options.candleLightingNightfallId ?: id else id
             val formula = when {
@@ -130,7 +131,7 @@ class CalculationEngine {
                 else -> label
             }
             val elevation = when {
-                !p.options.useElevation -> "Sea level"
+                !p.options.useElevation && !p.methodDependencies(listOf(effectiveId)).any { MethodCatalog.byId[it]?.explicitElevation == true } -> "Sea level"
                 !usesElevation(effectiveId) -> "Elevation does not affect this method"
                 place.elevation == null -> "Elevation not provided"
                 else -> "${place.elevation} m"
@@ -140,6 +141,12 @@ class CalculationEngine {
     }
 
     fun validateProfile(profile: Profile) {
+        require(profile.displayNames.all { (id, name) -> name.isNotBlank() && (id in MethodCatalog.byId || profile.custom.any { it.id == id }) }) { "Display names must refer to an existing calculation and cannot be blank." }
+        require(profile.reminders.map { it.methodId }.distinct().size == profile.reminders.size) { "Each calculation must have one reminder collection." }
+        val rules = profile.reminders.flatMap { it.reminders }
+        require(rules.map { it.id }.distinct().size == rules.size) { "Reminder IDs must be unique." }
+        require(profile.selected.distinct().size == profile.selected.size) { "Selected calculations must be unique." }
+        require(profile.reminders.flatMap { it.reminders }.all { it.snoozeMinutes in 1..120 }) { "Snooze must be between 1 and 120 minutes." }
         require(profile.name.isNotBlank()) { "Enter a profile name." }
         require(profile.custom.map { it.id }.distinct().size == profile.custom.size) { "Custom calculation IDs must be unique." }
         require(profile.reminders.flatMap { it.reminders }.all { it.minutesBefore in 0..525600 }) { "Reminder offsets must be whole minutes from 0 to 525600." }
