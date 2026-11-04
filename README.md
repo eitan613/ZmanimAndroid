@@ -121,3 +121,6 @@ recovers writes interrupted between Room and DataStore commits.
 
 Build configuration and the Gradle wrapper are retained at the project root and
 under `gradle/`. Remaining planned work is tracked in [docs/todo.md](docs/todo.md).
+
+For a beginner-oriented explanation of Android, Gradle, the complete file
+structure, and sharing an installable APK, see [the project guide](docs/project-guide.md).
