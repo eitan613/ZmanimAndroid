@@ -3,7 +3,6 @@ package com.example.zmanim.platform
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import com.example.zmanim.domain.*
@@ -58,7 +57,6 @@ class CalendarGateway(private val context: Context) {
             }
         }
     }
-    fun viewIntent(providerId: Long) = Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, providerId))
     /** Editable fields for the selected instance, retaining arbitrary external series rules. */
     fun instanceEvent(occurrence: Occurrence): Event? {
         if (!canRead()) return null
@@ -72,9 +70,17 @@ class CalendarGateway(private val context: Context) {
             Event(id = current.key, title = current.title, description = cursor.getString(0).orEmpty(), venue = cursor.getString(1).orEmpty(),
                 anchorDate = start.toLocalDate().toString(), localTime = start.toLocalTime().toString(), zoneId = current.zoneId,
                 timeKind = if (current.allDay) EventTimeKind.ALL_DAY else EventTimeKind.FIXED,
-                durationMinutes = Duration.between(start.toLocalDateTime(), end.toLocalDateTime()).toMinutes(), reminderOwner = ReminderOwner.CALENDAR)
+                durationMinutes = Duration.between(start.toLocalDateTime(), end.toLocalDateTime()).toMinutes(),
+                reminders = instanceReminders(current.providerId), reminderOwner = ReminderOwner.CALENDAR)
         }
     }
+
+    private fun instanceReminders(providerId: Long): List<ReminderRule> =
+        resolver.query(CalendarContract.Reminders.CONTENT_URI, arrayOf("_id", "minutes"),
+            "event_id = ? AND minutes >= 0 AND method IN (?, ?)",
+            arrayOf(providerId.toString(), CalendarContract.Reminders.METHOD_ALERT.toString(), CalendarContract.Reminders.METHOD_DEFAULT.toString()), "minutes DESC")?.use { cursor ->
+            buildList { while (cursor.moveToNext()) add(ReminderRule(id = "provider-reminder:${cursor.getLong(0)}", minutesBefore = cursor.getInt(1))) }
+        }.orEmpty()
 
     /** Update an ordinary event, or create an exception for exactly one recurring instance. */
     fun updateInstance(occurrence: Occurrence, original: Event, edited: Event): Long {
@@ -82,6 +88,7 @@ class CalendarGateway(private val context: Context) {
         require(calendars().any { it.id == occurrence.sourceCalendarId && it.writable }) { "Choose a writable calendar." }
         require(edited.title.isNotBlank()) { "Enter an event title." }
         require(edited.durationMinutes > 0) { "Enter a positive duration." }
+        require(edited.reminders.all { it.minutesBefore in 0..525600 }) { "Reminder offsets must be whole minutes from 0 to 525600." }
         val providerId = occurrence.providerId!!
         check(instance(providerId, occurrence.start!!.toEpochMilli()) != null) { "This occurrence is no longer available." }
         val date = LocalDate.parse(edited.anchorDate)
@@ -117,7 +124,7 @@ class CalendarGateway(private val context: Context) {
             }
             repeats
         } ?: false
-        return if (recurring) {
+        val savedId = if (recurring) {
             // CalendarProvider derives an exception's DTEND from DURATION and copies
             // the original all-day flag, attendees, and reminders itself.
             values.remove(CalendarContract.Events.DTEND)
@@ -130,17 +137,19 @@ class CalendarGateway(private val context: Context) {
             check(resolver.update(uri, values, null, null) == 1) { "This event is no longer available." }
             providerId
         }
-    }
-    fun invitationIntent(event: Event): Intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI).apply {
-        putExtra(CalendarContract.Events.TITLE, event.title)
-        putExtra(CalendarContract.Events.DESCRIPTION, event.description)
-        putExtra(CalendarContract.Events.EVENT_LOCATION, event.venue)
-        putExtra(Intent.EXTRA_EMAIL, event.guests)
-        val start = LocalDateTime.of(LocalDate.parse(event.anchorDate), LocalTime.parse(event.localTime)).atZone(ZoneId.of(event.zoneId)).toInstant()
-        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.toEpochMilli())
-        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, start.plusSeconds(event.durationMinutes * 60).toEpochMilli())
-        putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, event.timeKind == EventTimeKind.ALL_DAY)
-        nativeRule(event)?.let { putExtra(CalendarContract.Events.RRULE, it) }
+        if (edited.reminders != original.reminders) {
+            // Keep other delivery methods (for example email reminders) intact.
+            resolver.delete(CalendarContract.Reminders.CONTENT_URI, "event_id = ? AND method IN (?, ?)",
+                arrayOf(savedId.toString(), CalendarContract.Reminders.METHOD_ALERT.toString(), CalendarContract.Reminders.METHOD_DEFAULT.toString()))
+            edited.reminders.filter { it.enabled }.forEach { rule ->
+                resolver.insert(CalendarContract.Reminders.CONTENT_URI, ContentValues().apply {
+                    put(CalendarContract.Reminders.EVENT_ID, savedId)
+                    put(CalendarContract.Reminders.MINUTES, rule.minutesBefore)
+                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                })
+            }
+        }
+        return savedId
     }
     private fun nativeRule(event: Event): String? {
         val r = event.recurrence
@@ -188,12 +197,12 @@ class CalendarGateway(private val context: Context) {
     fun ordinaryEvent(id: Long): Pair<Event, Long>? {
         if (!canRead()) return null
         return resolver.query(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id),
-            arrayOf("title", "description", "eventLocation", "dtstart", "dtend", "duration", "allDay", "eventTimezone", "calendar_id", "rrule"), null, null, null)?.use { c ->
+            arrayOf("title", "description", "eventLocation", "dtstart", "dtend", "duration", "allDay", "eventTimezone", "calendar_id", "rrule", "rdate"), null, null, null)?.use { c ->
             if (!c.moveToFirst()) return@use null
             val zone = runCatching { ZoneId.of(c.getString(7)) }.getOrDefault(ZoneId.systemDefault())
             val start = Instant.ofEpochMilli(c.getLong(3)).atZone(if (c.getInt(6) != 0) ZoneOffset.UTC else zone)
-            // Advanced external recurrence must be edited in its owning calendar app to avoid losing semantics.
-            if (!c.getString(9).isNullOrBlank()) return@use null
+            // Recurring events use the selected-instance editor to retain their original rules.
+            if (!c.getString(9).isNullOrBlank() || !c.getString(10).isNullOrBlank()) return@use null
             val providerReminders = resolver.query(CalendarContract.Reminders.CONTENT_URI, arrayOf("_id", "minutes", "method"), "event_id = ?", arrayOf(id.toString()), null)?.use remindersRead@ { reminders ->
                 buildList<ReminderRule> {
                     while (reminders.moveToNext()) {
@@ -276,7 +285,7 @@ class CalendarGateway(private val context: Context) {
                 if (!currentValues) resolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, link.providerId), values, null, null)
                 link.providerId
             }
-            val reminders = if (event.remindersEnabled && event.reminderOwner == ReminderOwner.CALENDAR) event.reminders.filter { it.enabled } else emptyList()
+            val reminders = if (event.remindersEnabled && event.reminderDeliveryOwner() == ReminderOwner.CALENDAR) event.reminders.filter { it.enabled } else emptyList()
             val currentReminders = resolver.query(CalendarContract.Reminders.CONTENT_URI, arrayOf("minutes"), "event_id = ?", arrayOf(providerId.toString()), null)?.use { c -> buildList { while (c.moveToNext()) add(c.getInt(0)) } }.orEmpty()
             if (currentReminders.sorted() != reminders.map { it.minutesBefore }.sorted()) replaceProviderReminders(providerId, reminders)
             links[id] = ExportLink(id, event.id, occurrence.date.toString(), calendarId, providerId, fingerprint(providerId)!!)

@@ -69,7 +69,8 @@ Selecting the events widget's Event tap action opens the event editor inside
 Zmanim. Connected calendar edits apply to the selected instance in its original
 calendar, preserving the rest of a recurring series. Read-only calendars and
 unsupported unsynced recurring events cannot be saved from this editor.
-All zmanim
+The zmanim widget removes each passed time, moves the second row into the next
+position, and adds a new upcoming time at the bottom. All zmanim
 rows scroll together; each upcoming timed row can use a native countdown with
 seconds. App countdowns also show seconds beyond an hour. Widget layouts and
 colors follow actual allocated size and the selected theme.
@@ -87,7 +88,14 @@ learning metadata records source coverage in `app/src/main/assets/learning-metad
 The Hebrew-date notification uses Hebrew letters in both its status icon and
 expanded date, independently of the calendar-label preference.
 Use row bells or Active profile reminders to configure reminders without events.
-A reminder may deliver a notification or a genuine ringing alarm with selected
+Each reminder has a separate row with an amount and minutes/hours/days/weeks,
+or an explicit At the time option. Adding a row defaults to 10 minutes before;
+removing it cancels that reminder. Event reminder rows are visible in the editor
+and are relative to the event start. Event reminder rows offer Notification or
+Alarm, with sound, vibration and snooze controls. Ringing alarms are managed by
+this app even when an event also appears in a connected calendar, preventing
+duplicate calendar alerts. Connected recurring calendar instances retain their
+calendar notification reminders. A reminder may deliver a notification or a genuine ringing alarm with selected
 sound, vibration, snooze and dismiss. Hidden groups suppress both. Real alarms
 require precise access and an enabled alarm channel; approximate notification
 delivery requires explicit opt-in. Android full-screen access is optional.
@@ -99,8 +107,9 @@ formats are not supported.
 
 Events use Gregorian/Hebrew grid pickers and a 12/24-hour time picker. Repeat has
 its own calendar; non-repeating Hebrew dates retain their day semantics. Clock
-changes resolve local start/end intervals automatically. Provider events open
-in-app details at their exact instance; converting an editable provider event to
+changes resolve local start/end intervals automatically. Events open directly in the in-app editor; recurring app events offer occurrence,
+following occurrences, and entire-series scope there. Connected calendar events
+open at their exact instance; converting an editable provider event to
 an app-managed rule adopts its provider record to avoid duplicate exports.
 
 Optional Look up elevation uses cached Open Topo Data SRTM90m terrain height.

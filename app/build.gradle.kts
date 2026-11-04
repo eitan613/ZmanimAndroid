@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation(libs.androidx.annotation.experimental)
     implementation(libs.androidx.room.runtime)
     annotationProcessor(libs.androidx.room.compiler)

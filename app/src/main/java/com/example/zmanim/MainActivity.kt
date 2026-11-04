@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
                     "calendar", "location", "today", "event" -> "calendar"
                     else -> if (settings.openingView == OpeningView.ZMANIM && eventId == null && providerId == null) "zmanim" else "calendar"
                 }
-                // A single launch effect decides destination and date before opening details.
+                // A single launch effect decides destination and date before opening the event editor.
                 nav.navigate(target) { popUpTo(nav.graph.startDestinationId); launchSingleTop = true }
                 if (destination == "today") model.today()
                 runCatching { java.time.LocalDate.parse(launchDate) }.getOrNull()?.let(model::select)
@@ -116,13 +116,9 @@ class MainActivity : ComponentActivity() {
                         val occurrence = occurrences.find { it.start?.toEpochMilli() == instanceStart } ?: occurrences.firstOrNull()
                         if (occurrence == null) model.message.emit("This occurrence is no longer available.") else {
                             model.select(date); editing = event
-                            if (destination == "event") {
-                                occurrenceSnapshot = if (event.recurrence.frequency == Frequency.NONE) null
-                                    else OccurrenceSnapshot.from(occurrence.copy(key = "single"))
-                                dialog = "event"
-                            } else {
-                                occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "event-detail"
-                            }
+                            occurrenceSnapshot = if (event.recurrence.frequency == Frequency.NONE) null
+                                else OccurrenceSnapshot.from(occurrence)
+                            dialog = "event"
                         }
                     }
                 } else if (providerId != null && instanceStart != null) {
@@ -130,9 +126,7 @@ class MainActivity : ComponentActivity() {
                     if (occurrence == null) model.message.emit("This device-calendar occurrence is no longer available.")
                     else {
                         model.select(occurrence.date)
-                        if (destination == "event") {
-                            occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-event"
-                        } else { occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-detail" }
+                        occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-event"
                     }
                 }
                 initialNavigationDone = true; handledLaunch = request
@@ -182,8 +176,8 @@ class MainActivity : ComponentActivity() {
                             val openEvent: (Occurrence) -> Unit = { occurrence ->
                                 occurrenceSnapshot = OccurrenceSnapshot.from(occurrence)
                                 nativeId = null; nativeCalendar = null
-                                if (occurrence.providerId != null) dialog = "provider-detail"
-                                else { editing = s.data.events.find { it.id == occurrence.eventId }; dialog = "event-detail" }
+                                if (occurrence.providerId != null) dialog = "provider-event"
+                                else { editing = s.data.events.find { it.id == occurrence.eventId }; dialog = "event" }
                             }
                             NavHost(nav, startDestination = "calendar") {
                                 composable("calendar") { CalendarScreen(s, model, onNewEvent = { start -> editing = Event(title = "", anchorDate = start.date.toString(), localTime = (start.time ?: java.time.LocalTime.of(9, 0)).toString(), zoneId = s.data.place()?.zoneId ?: java.time.ZoneId.systemDefault().id,
@@ -195,14 +189,6 @@ class MainActivity : ComponentActivity() {
                             when (dialog) {
                                 "event" -> EventEditor(s, model, editing, selectedOccurrence, nativeId, nativeCalendar, { dialog = null })
                                 "provider-event" -> selectedOccurrence?.let { o -> ProviderEventEditor(s, model, o) { dialog = null } }
-                                "event-detail" -> selectedOccurrence?.let { o -> EventDetails(s, model, o, onDismiss = { dialog = null }, onEdit = { scopeChoice ->
-                                    dialog = "event"; nativeId = null; nativeCalendar = null
-                                    if (scopeChoice == "series") occurrenceSnapshot = null
-                                    else occurrenceSnapshot = OccurrenceSnapshot.from(o.copy(key = scopeChoice))
-                                }) }
-                                "provider-detail" -> selectedOccurrence?.let { o -> ProviderEventDetails(s, model, o, { dialog = null }) { event, calendar ->
-                                    editing = event; nativeId = o.providerId; nativeCalendar = calendar; occurrenceSnapshot = null; dialog = "event"
-                                } }
                                 "help" -> HelpDialog { dialog = null }
                                 "reminders" -> ProfileRemindersDialog(s, model) { dialog = null }
                                 "active-profile" -> s.data.profile()?.let { ProfileEditor(it, s, model) { dialog = null } }

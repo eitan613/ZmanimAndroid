@@ -15,6 +15,7 @@ class OccurrenceEngine(private val calculations: CalculationEngine = Calculation
         require(event.offsetMinutes.isFinite()) { "Enter a finite offset." }
         checkedOffsetMillis(event.offsetMinutes * 60000)
         require(event.reminders.all { it.minutesBefore in 0..525600 }) { "Reminder offsets must be whole minutes from 0 to 525600." }
+        require(event.reminders.filter { it.mode == ReminderMode.ALARM }.all { it.snoozeMinutes in 1..120 }) { "Snooze must be between 1 and 120 minutes." }
         val r = event.recurrence
         require(r.interval in 1..1000) { "Recurrence interval must be between 1 and 1000." }
         require(r.count == null || r.count in 1..100000) { "Occurrence count must be positive and at most 100,000." }

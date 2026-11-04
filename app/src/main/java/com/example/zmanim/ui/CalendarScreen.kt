@@ -54,7 +54,7 @@ import kotlin.math.*
                 }
                 if (!searching) {
                     if (settings.calendarView == CalendarView.MONTH) item {
-                        MonthGrid(s, model, { date -> onNewEvent(EventStart(date)) }, onZmanim, locale, cellHeight)
+                        MonthGrid(s, model, { date -> onNewEvent(EventStart(date)) }, onZmanim, onEvent, locale, cellHeight)
                     }
                     if (settings.calendarView != CalendarView.MONTH) {
                         val first = if (settings.calendarView == CalendarView.DAY) s.date else {
@@ -81,7 +81,7 @@ import kotlin.math.*
     }
 }
 
-@Composable private fun MonthGrid(s: ScreenData, model: AppViewModel, onNewEvent: (LocalDate) -> Unit, onZmanim: () -> Unit, locale: Locale, cellHeight: Dp) {
+@Composable private fun MonthGrid(s: ScreenData, model: AppViewModel, onNewEvent: (LocalDate) -> Unit, onZmanim: () -> Unit, onEvent: (Occurrence) -> Unit, locale: Locale, cellHeight: Dp) {
     val settings = s.data.settings
     val engine = remember { CalendarEngine() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -152,7 +152,10 @@ import kotlin.math.*
                                         if (settings.showEventBasics) {
                                             val event = dayEvents.first()
                                             val clock = event.start?.let { TimeFormatting.format(it, ZoneId.of(event.zoneId), settings.copy(showSeconds = false), DateFormat.is24HourFormat(LocalContext.current), locale) }
-                                            Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
+                                            val openEvent = { model.select(day.date); onEvent(event) }
+                                            Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title,
+                                                modifier = Modifier.fillMaxWidth().combinedClickable(onClick = openEvent, onDoubleClick = openEvent),
+                                                textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
                                             if (count > 1) Text(tr("+${count - 1} more", "+${count - 1} נוספים"), maxLines = 1, style = MaterialTheme.typography.labelSmall, color = onCell)
                                         } else Text("• $count", style = MaterialTheme.typography.labelSmall, color = onCell)
                                     }

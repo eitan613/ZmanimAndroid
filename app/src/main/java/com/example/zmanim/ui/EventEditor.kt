@@ -1,6 +1,5 @@
 package com.example.zmanim.ui
 
-import android.content.Intent
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -16,15 +15,25 @@ import kotlinx.coroutines.*
 @Composable fun EventEditor(s: ScreenData, model: AppViewModel, original: Event?, occurrence: Occurrence?,
     nativeId: Long?, nativeCalendar: Long?, onDismiss: () -> Unit) {
     val scopedId = rememberSaveable(original?.id, occurrence?.key) { newId() }
+    val recurring = original != null && original.recurrence.frequency != Frequency.NONE && occurrence != null
+    var editScope by rememberSaveable(original?.id, occurrence?.key) { mutableStateOf(if (recurring) "single" else "series") }
+    fun scopedEvent(scope: String): Event {
+        val event = original!!
+        val date = occurrence!!.date
+        return when (scope) {
+            "single" -> event.copy(id = scopedId, anchorDate = date.toString(), recurrence = Recurrence(), excludedDates = emptySet(), parentId = event.id)
+            "following" -> event.copy(id = scopedId, anchorDate = date.toString(), recurrence = event.recurrence.copy(count = event.recurrence.count?.let { count ->
+                val before = OccurrenceEngine().dates(event.copy(excludedDates = emptySet()), LocalDate.parse(event.anchorDate), date).size
+                (count - before).coerceAtLeast(1)
+            }), excludedDates = event.excludedDates.filter { it >= date.toString() }.toSet(), parentId = event.id)
+            else -> event
+        }
+    }
     val initial = remember(original?.id, occurrence?.key) {
         when {
             original == null -> Event(title = "", anchorDate = s.date.toString(), zoneId = s.data.place()?.zoneId ?: ZoneId.systemDefault().id,
                 location = s.data.settings.location, profileId = s.data.settings.activeProfileId)
-            occurrence?.key == "single" -> original.copy(id = scopedId, anchorDate = occurrence.date.toString(), recurrence = Recurrence(), excludedDates = emptySet(), parentId = original.id)
-            occurrence?.key == "following" -> original.copy(id = scopedId, anchorDate = occurrence.date.toString(), recurrence = original.recurrence.copy(count = original.recurrence.count?.let { count ->
-                val before = OccurrenceEngine().dates(original.copy(excludedDates = emptySet()), LocalDate.parse(original.anchorDate), occurrence.date).size
-                (count - before).coerceAtLeast(1)
-            }), excludedDates = original.excludedDates.filter { it >= occurrence.date.toString() }.toSet(), parentId = original.id)
+            recurring -> scopedEvent("single")
             else -> original
         }
     }
@@ -44,29 +53,38 @@ import kotlinx.coroutines.*
             segments.size == 1 && Duration.between(segments[0].first, segments[0].second).toMinutes() == duration.toLongOrNull()
         }.getOrDefault(false))
     var deleteNative by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val locale = LocalProductLocale.current
+    val hasAlarm = draft.hasAlarmReminders()
+    val saveDirectly = !hasAlarm && destination != null && eligible && occurrence == null && (original == null || s.data.events.none { it.id == original.id } || nativeId != null)
+    val appReminders = !saveDirectly && (destination == null || draft.reminderDeliveryOwner() == ReminderOwner.APP)
     EditorDialog(if (original == null || nativeId == null && s.data.events.none { it.id == original.id }) tr("New event", "אירוע חדש") else tr("Edit event", "עריכת אירוע"), draft != initial || duration != initial.durationMinutes.toString() || destination != (nativeCalendar ?: initial.exportCalendarId), onDismiss, {
         val event = draft.copy(durationMinutes = duration.toLongOrNull() ?: error("Enter a whole duration in minutes."),
-            offsetMinutes = offset.toDoubleOrNull() ?: error("Enter a valid offset."), exportCalendarId = destination,
+            offsetMinutes = offset.toDoubleOrNull() ?: error("Enter a valid offset."), exportCalendarId = destination, reminderOwner = draft.reminderDeliveryOwner(),
             profileId = draft.profileId.takeIf { draft.timeKind == EventTimeKind.ZMAN }, methodId = draft.methodId.takeIf { draft.timeKind == EventTimeKind.ZMAN })
         OccurrenceEngine().validate(event, model.repository.data)
-        if (destination != null && eligible && occurrence == null && (original == null || s.data.events.none { it.id == original.id } || nativeId != null)) {
-            val providerId = withContext(Dispatchers.IO) { model.app.calendars.saveOrdinary(event, destination!!, nativeId) }
-            if (event.guests.isNotBlank()) context.startActivity(Intent(Intent.ACTION_EDIT,
-                android.content.ContentUris.withAppendedId(android.provider.CalendarContract.Events.CONTENT_URI, providerId)).putExtra(Intent.EXTRA_EMAIL, event.guests))
+        if (saveDirectly) {
+            withContext(Dispatchers.IO) { model.app.calendars.saveOrdinary(event, destination!!, nativeId) }
             model.refresh()
         } else if (nativeId != null && destination != null) {
             val o = OccurrenceEngine().occurrence(event, LocalDate.parse(event.anchorDate), model.repository.data)
             val link = withContext(Dispatchers.IO) { model.app.calendars.adopt(event, o, destination!!, nativeId) }
             model.repository.update { it.copy(events = it.events.filterNot { e -> e.id == event.id } + event,
                 exports = it.exports.filterNot { e -> e.id == link.id } + link) }
-        } else when (occurrence?.key) {
-            "single" -> model.repository.replaceOccurrence(original!!, occurrence.date, event)
-            "following" -> model.repository.splitSeries(original!!, occurrence.date, event)
+        } else when (editScope) {
+            "single" -> model.repository.replaceOccurrence(original!!, occurrence!!.date, event)
+            "following" -> model.repository.splitSeries(original!!, occurrence!!.date, event)
             else -> model.repository.saveEvent(event)
         }
     }) {
+        if (recurring) Choice(tr("Apply changes to", "החלת השינויים על"), editScope, listOf("single", "following", "series"),
+            { scope -> when (scope) { "single" -> tr("This occurrence", "מופע זה"); "following" -> tr("This and following", "מופע זה והבאים"); else -> tr("Entire series", "כל הסדרה") } },
+            { scope ->
+                val scoped = scopedEvent(scope)
+                draft = draft.copy(id = scoped.id, anchorDate = scoped.anchorDate, recurrence = scoped.recurrence, excludedDates = scoped.excludedDates, parentId = scoped.parentId)
+                editScope = scope
+            })
         Field(tr("Title", "כותרת"), draft.title, { draft = draft.copy(title = it) })
         Choice(tr("Date calendar", "לוח להזנת תאריך"), draft.calendar, CalendarSystem.entries, { enumName(it) }, { draft = draft.copy(calendar = it) })
         OutlinedButton(onClick = { goTo = true }, modifier = Modifier.fillMaxWidth()) {
@@ -105,7 +123,7 @@ import kotlinx.coroutines.*
             LocationChoice(tr("Calculation location", "מקום החישוב"), draft.location, s.data) { draft = draft.copy(location = it) }
         }
         Section(tr("Repeat", "חזרה")) {
-            Choice(tr("Frequency", "תדירות"), draft.recurrence.frequency, (if (occurrence?.key == "single") listOf(Frequency.NONE) else Frequency.entries), { enumName(it) }, { draft = draft.copy(recurrence = draft.recurrence.copy(frequency = it)) })
+            Choice(tr("Frequency", "תדירות"), draft.recurrence.frequency, (if (recurring && editScope == "single") listOf(Frequency.NONE) else Frequency.entries), { enumName(it) }, { draft = draft.copy(recurrence = draft.recurrence.copy(frequency = it)) })
             if (draft.recurrence.frequency != Frequency.NONE) {
                 Choice(tr("Recurrence calendar", "לוח לחזרה"), draft.repeatCalendar, CalendarSystem.entries, { enumName(it) },
                     { draft = draft.copy(repeatCalendar = it, recurrence = draft.recurrence.copy(missingDay = null, ordinaryAdar = null, leapAdar = null)) })
@@ -136,17 +154,31 @@ import kotlinx.coroutines.*
                 }
             }
         }
-        TextButton(onClick = { details = !details }) { Text(tr("Details, reminders and Save to", "פרטים, תזכורות ושמירה")) }
-        if (details) Section(tr("Details and reminders", "פרטים ותזכורות")) {
+        Section(tr("Reminders", "תזכורות")) {
+            Text(tr("Each row can show a notification or ring an alarm before the event starts, or at its start time.", "כל שורה יכולה להציג התראה או לצלצל כשעון מעורר לפני תחילת האירוע או בזמן תחילתו."), style = MaterialTheme.typography.bodySmall)
+            if (!draft.remindersEnabled && draft.reminders.isNotEmpty()) {
+                Notice(tr("This event’s saved reminders are paused.", "התזכורות השמורות של אירוע זה מושהות."))
+                TextButton(onClick = { draft = draft.copy(remindersEnabled = true) }) { Text(tr("Resume reminders", "הפעלת התזכורות מחדש")) }
+            }
+            ReminderOffsets(draft.reminders, allowAlarms = true) { draft = draft.copy(reminders = it, remindersEnabled = true) }
+            if (draft.reminders.isNotEmpty() && appReminders) {
+                if (!s.data.settings.eventNotifications) Notice(tr("Event notifications are off. Enable them in Settings → Permissions to receive these reminders.", "התראות אירועים כבויות. לקבלת תזכורות יש להפעיל אותן בהגדרות ← הרשאות."))
+                if (draft.reminders.any { it.mode == ReminderMode.NOTIFICATION }) Text(localizeMessage(model.app.reminders.status(s.data.settings), LocalHebrew.current), style = MaterialTheme.typography.bodySmall)
+            }
+            if (hasAlarm) {
+                EventAlarmAccess(model)
+                if (destination != null) Text(tr("This app manages the event and its alarms; the event still appears in the selected calendar.", "האפליקציה מנהלת את האירוע ואת השעונים המעוררים שלו; האירוע עדיין מופיע בלוח השנה שנבחר."), style = MaterialTheme.typography.bodySmall)
+            }
+            if (draft.reminders.isNotEmpty() && !appReminders) Text(tr("These reminders use the selected calendar’s notification settings.", "תזכורות אלה משתמשות בהגדרות ההתראות של לוח השנה שנבחר."), style = MaterialTheme.typography.bodySmall)
+        }
+        TextButton(onClick = { details = !details }) { Text(tr("Details and Save to", "פרטים ושמירה")) }
+        if (details) Section(tr("Event details", "פרטי האירוע")) {
             Field(tr("Location / venue", "מקום האירוע"), draft.venue, { draft = draft.copy(venue = it) })
             Field(tr("Description", "תיאור"), draft.description, { draft = draft.copy(description = it) }, multiline = true)
             if (advanced || draft.guests.isNotBlank()) {
             Field(tr("Guest email addresses", "כתובות דוא״ל של אורחים"), draft.guests, { draft = draft.copy(guests = it) })
-            Text(tr("Guest invitations are completed in your device calendar app. Saving local guest details does not send invitations.", "הזמנות לאורחים מתבצעות באפליקציית לוח השנה של המכשיר. שמירת פרטי אורחים כאן אינה שולחת הזמנות."), style = MaterialTheme.typography.bodySmall)
+            Text(tr("Guest addresses are saved as event details. Saving does not send invitations.", "כתובות האורחים נשמרות בפרטי האירוע. השמירה אינה שולחת הזמנות."), style = MaterialTheme.typography.bodySmall)
             }
-            Toggle(tr("Enable this event’s reminders", "הפעלת תזכורות לאירוע זה"), draft.remindersEnabled, { draft = draft.copy(remindersEnabled = it) })
-            ReminderOffsets(draft.reminders) { draft = draft.copy(reminders = it) }
-            Text(localizeMessage(model.app.reminders.status(s.data.settings), LocalHebrew.current), style = MaterialTheme.typography.bodySmall)
             val calendars = s.calendars.filter { it.writable }
             if (nativeId != null) {
                 Text(tr("Save to: ", "שמירה ב־") + (calendars.find { it.id == nativeCalendar }?.name ?: tr("Original device calendar", "לוח המכשיר המקורי")))
@@ -157,10 +189,11 @@ import kotlinx.coroutines.*
                 { id -> calendars.find { it.id == id }?.let { "${it.name} · ${it.account}" } ?: tr("Personal events in this app", "אירועים אישיים באפליקציה") }, { destination = it })
             if (destination != null && !eligible) {
                 Notice(tr("This app keeps the original rule and exports individual occurrences for the next year. External changes are flagged for review.", "האפליקציה שומרת את הכלל המקורי ומייצאת מופעים לשנה הקרובה. שינויים חיצוניים יסומנו לבדיקה."))
-                Choice(tr("Reminder owner", "אחראי לתזכורות"), draft.reminderOwner, ReminderOwner.entries, { enumName(it) }, { draft = draft.copy(reminderOwner = it) })
+                if (!hasAlarm) Choice(tr("Reminder owner", "אחראי לתזכורות"), draft.reminderOwner, ReminderOwner.entries, { enumName(it) }, { draft = draft.copy(reminderOwner = it) })
             }
         }
         if (nativeId != null) TextButton(onClick = { deleteNative = true }) { Text(tr("Delete device-calendar event", "מחיקת אירוע מלוח המכשיר"), color = MaterialTheme.colorScheme.error) }
+        else if (original != null && s.data.events.any { it.id == original.id }) TextButton(onClick = { deleting = true }) { Text(tr("Delete event", "מחיקת אירוע"), color = MaterialTheme.colorScheme.error) }
         Section(tr("Occurrence preview", "תצוגה מקדימה של מופעים")) {
             val previewDraft = draft.copy(durationMinutes = duration.toLongOrNull() ?: 0, offsetMinutes = offset.toDoubleOrNull() ?: Double.NaN)
             val preview by produceState<Pair<String?, List<Occurrence>>>(null to emptyList(), previewDraft, s.data) {
@@ -178,6 +211,18 @@ import kotlinx.coroutines.*
             HelpLink("events")
         }
     }
+    if (deleting && original != null) ConfirmDialog(tr("Delete ${original.title}?", "למחוק את ${original.title}?"),
+        tr("The selected occurrence scope and its reminders will be removed.", "המופעים בטווח שנבחר והתזכורות שלהם יוסרו."), tr("Delete", "מחיקה"), { deleting = false }) {
+        model.act {
+            when {
+                !recurring || editScope == "series" -> model.repository.deleteEvent(original.id)
+                editScope == "single" -> model.repository.excludeOccurrence(original, occurrence!!.date)
+                else -> if (occurrence!!.date <= LocalDate.parse(original.anchorDate)) model.repository.deleteEvent(original.id)
+                    else model.repository.saveEvent(original.copy(recurrence = original.recurrence.copy(until = occurrence.date.minusDays(1).toString())))
+            }
+            deleting = false; onDismiss()
+        }
+    }
     if (deleteNative && nativeId != null) ConfirmDialog(tr("Delete this device-calendar event?", "למחוק אירוע זה מלוח המכשיר?"),
         tr("The calendar account may sync this deletion to your other devices.", "המחיקה עשויה להסתנכרן למכשירים אחרים דרך חשבון לוח השנה."), tr("Delete", "מחיקה"), { deleteNative = false }) {
         model.act { withContext(Dispatchers.IO) { model.app.calendars.deleteOrdinary(nativeId) }; model.refresh(); deleteNative = false; onDismiss() }
@@ -187,69 +232,31 @@ import kotlinx.coroutines.*
     if (goTo) GoToDialog(runCatching { LocalDate.parse(draft.anchorDate) }.getOrDefault(s.date), { draft = draft.copy(anchorDate = it.toString()); goTo = false }, { goTo = false }, draft.calendar)
 }
 
-@Composable fun EventDetails(s: ScreenData, model: AppViewModel, occurrence: Occurrence, onDismiss: () -> Unit, onEdit: (String) -> Unit) {
-    val event = s.data.events.find { it.id == occurrence.eventId } ?: return
-    var deleting by remember { mutableStateOf(false) }
-    var deleteScope by remember { mutableStateOf("single") }
-    val context = LocalContext.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(event.title) }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(TimeFormatting.occurrence(occurrence, s.data.settings, DateFormat.is24HourFormat(context), LocalProductLocale.current))
-            occurrence.unavailableReason?.let { Notice(it, true) }
-            if (event.venue.isNotBlank()) Text(event.venue)
-            if (event.description.isNotBlank()) Text(event.description)
-            if (event.guests.isNotBlank()) Text(tr("Guests: ", "אורחים: ") + event.guests)
-            if (event.recurrence.frequency != Frequency.NONE) {
-                TextButton(onClick = { onEdit("single") }) { Text(tr("Edit this occurrence", "עריכת מופע זה")) }
-                TextButton(onClick = { onEdit("following") }) { Text(tr("Edit this and following", "עריכת מופע זה והבאים")) }
-            }
-            TextButton(onClick = { onEdit("series") }) { Text(if (event.recurrence.frequency == Frequency.NONE) tr("Edit event", "עריכת אירוע") else tr("Edit entire series", "עריכת כל הסדרה")) }
-            if (event.guests.isNotBlank()) TextButton(onClick = {
-                val link = s.data.exports.find { it.id == occurrence.key }
-                val intent = if (link != null) Intent(Intent.ACTION_EDIT, android.content.ContentUris.withAppendedId(android.provider.CalendarContract.Events.CONTENT_URI, link.providerId)).putExtra(Intent.EXTRA_EMAIL, event.guests)
-                else model.app.calendars.invitationIntent(event.copy(anchorDate = occurrence.date.toString(), recurrence = Recurrence()))
-                if (link == null) {
-                    occurrence.start?.let { intent.putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, it.toEpochMilli()) }
-                    occurrence.end?.let { intent.putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, it.toEpochMilli()) }
-                    intent.putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, occurrence.allDay)
-                    intent.putExtra(android.provider.CalendarContract.Events.EVENT_TIMEZONE, occurrence.zoneId)
-                }
-                model.act { context.startActivity(intent) }
-            }) { Text(tr("Open guest invitations in calendar", "פתיחת הזמנות בלוח השנה")) }
-            if (event.recurrence.frequency != Frequency.NONE) Choice(tr("Delete scope", "טווח מחיקה"), deleteScope, listOf("single", "following", "series"),
-                { scope -> when (scope) { "single" -> tr("This occurrence", "מופע זה"); "following" -> tr("This and following", "מופע זה והבאים"); else -> tr("Entire series", "כל הסדרה") } }, { deleteScope = it })
-            TextButton(onClick = { deleting = true }) { Text(tr("Delete", "מחיקה"), color = MaterialTheme.colorScheme.error) }
-        }
-    }, confirmButton = { TextButton(onClick = onDismiss) { Text(tr("Close", "סגירה")) } })
-    if (deleting) ConfirmDialog(tr("Delete ${event.title}?", "למחוק את ${event.title}?"),
-        tr("The chosen occurrences and their reminders will be removed. Managed exports are reconciled afterward.", "המופעים שנבחרו והתזכורות שלהם יוסרו. הייצוא המנוהל יעודכן לאחר מכן."),
-        tr("Delete", "מחיקה"), { deleting = false }) {
-        deleting = false
-        model.act {
-            when {
-                event.recurrence.frequency == Frequency.NONE || deleteScope == "series" -> model.repository.deleteEvent(event.id)
-                deleteScope == "single" -> model.repository.excludeOccurrence(event, occurrence.date)
-                else -> if (occurrence.date <= LocalDate.parse(event.anchorDate)) model.repository.deleteEvent(event.id) else model.repository.saveEvent(event.copy(recurrence = event.recurrence.copy(until = occurrence.date.minusDays(1).toString())))
-            }
-            onDismiss()
-        }
-    }
-}
-
-/** Opens directly from a widget, including arbitrary recurring device-calendar instances. */
+/** Edits the selected connected-calendar instance inside the app. */
 @Composable fun ProviderEventEditor(s: ScreenData, model: AppViewModel, occurrence: Occurrence, onDismiss: () -> Unit) {
-    val loaded by produceState<Pair<Boolean, Event?>>(false to null, occurrence.key) {
-        value = true to withContext(Dispatchers.IO) { model.app.calendars.instanceEvent(occurrence) }
+    var loadError by remember(occurrence.key) { mutableStateOf<String?>(null) }
+    val loaded by produceState<Triple<Boolean, Event?, Long?>>(Triple(false, null, null), occurrence.key) {
+        value = try {
+            withContext(Dispatchers.IO) {
+                val ordinary = model.app.calendars.ordinaryEvent(occurrence.providerId!!)
+                Triple(true, ordinary?.first?.copy(id = "provider-editor:${occurrence.key}") ?: model.app.calendars.instanceEvent(occurrence), ordinary?.second)
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { loadError = e.message; Triple(true, null, null) }
     }
     val initial = loaded.second
     if (initial == null) {
         AlertDialog(onDismissRequest = onDismiss, title = { Text(tr("Edit event", "עריכת אירוע")) },
-            text = { if (loaded.first) Text(tr("This occurrence is no longer available.", "מופע זה אינו זמין עוד.")) else CircularProgressIndicator() },
+            text = { if (loaded.first) Text(loadError?.let { localizeMessage(it, LocalHebrew.current) } ?: tr("This occurrence is no longer available.", "מופע זה אינו זמין עוד.")) else CircularProgressIndicator() },
             confirmButton = { TextButton(onClick = onDismiss) { Text(tr("Close", "סגירה")) } })
         return
     }
-    var draft by rememberDraft("provider-instance-${occurrence.key}", initial)
     val writable = model.app.calendars.canWrite() && s.calendars.any { it.id == occurrence.sourceCalendarId && it.writable }
+    if (loaded.third != null && writable) {
+        EventEditor(s, model, initial, null, occurrence.providerId, loaded.third, onDismiss)
+        return
+    }
+    var draft by rememberDraft("provider-instance-${occurrence.key}", initial)
     var datePicker by remember { mutableStateOf(false) }
     var timePicker by remember { mutableStateOf(false) }
     val initialDuration = (if (initial.timeKind == EventTimeKind.ALL_DAY) initial.durationMinutes / 1440 else initial.durationMinutes).toString()
@@ -279,45 +286,12 @@ import kotlinx.coroutines.*
         Field(if (draft.timeKind == EventTimeKind.ALL_DAY) tr("Duration (days)", "משך (ימים)") else tr("Duration (minutes)", "משך (דקות)"), duration, { duration = it }, numeric = true, enabled = writable)
         Field(tr("Location / venue", "מקום האירוע"), draft.venue, { draft = draft.copy(venue = it) }, enabled = writable)
         Field(tr("Description", "תיאור"), draft.description, { draft = draft.copy(description = it) }, multiline = true, enabled = writable)
+        Section(tr("Reminders", "תזכורות")) {
+            if (writable) ReminderOffsets(draft.reminders) { draft = draft.copy(reminders = it) }
+            else Text(tr("${draft.reminders.size} configured reminders", "${draft.reminders.size} תזכורות מוגדרות"))
+        }
     }
     if (datePicker) GoToDialog(LocalDate.parse(draft.anchorDate), { draft = draft.copy(anchorDate = it.toString()); datePicker = false }, { datePicker = false }, CalendarSystem.GREGORIAN)
     if (timePicker) TimeSelectionDialog(LocalTime.parse(draft.localTime), s.data.settings.use24Hour ?: DateFormat.is24HourFormat(context),
         { draft = draft.copy(localTime = it.toString()); timePicker = false }, { timePicker = false })
-}
-
-@Composable fun ProviderEventDetails(s: ScreenData, model: AppViewModel, initial: Occurrence, onDismiss: () -> Unit, onEdit: (Event, Long) -> Unit) {
-    var current by remember { mutableStateOf<Occurrence?>(null) }
-    var ordinary by remember { mutableStateOf<Pair<Event, Long>?>(null) }
-    var loaded by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    LaunchedEffect(initial.key) {
-        try {
-            withContext(Dispatchers.IO) {
-                current = model.app.calendars.instance(initial.providerId!!, initial.start!!.toEpochMilli())
-                ordinary = model.app.calendars.ordinaryEvent(initial.providerId)
-            }
-        } catch (e: Exception) { error = e.message }
-        loaded = true
-    }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(current?.title ?: initial.title) }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!loaded) CircularProgressIndicator()
-            error?.let { Notice(it, true) }
-            current?.let { o ->
-                Text(TimeFormatting.occurrence(o, s.data.settings, DateFormat.is24HourFormat(context), LocalProductLocale.current))
-                ordinary?.first?.venue?.takeIf { it.isNotBlank() }?.let { Text(it) }
-                ordinary?.first?.description?.takeIf { it.isNotBlank() }?.let { Text(it) }
-                val editable = ordinary?.takeIf { pair -> s.calendars.any { it.id == pair.second && it.writable } }
-                if (editable != null) TextButton(onClick = { onEdit(editable.first, editable.second) }) { Text(tr("Edit event", "עריכת אירוע")) }
-                else Text(tr("Read-only details. Recurring or unsupported rules are edited in their device calendar.", "פרטים לקריאה בלבד. כללים חוזרים או לא נתמכים נערכים בלוח המכשיר."))
-                TextButton(onClick = {
-                    context.startActivity(model.app.calendars.viewIntent(o.providerId!!)
-                        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, o.start!!.toEpochMilli())
-                        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, o.end!!.toEpochMilli()))
-                }) { Text(tr("Open in device calendar", "פתיחה בלוח המכשיר")) }
-            }
-            if (loaded && current == null && error == null) Text(tr("This occurrence was deleted or calendar access is missing.", "מופע זה נמחק או שחסרה הרשאת לוח שנה."))
-        }
-    }, confirmButton = { TextButton(onClick = onDismiss) { Text(tr("Close", "סגירה")) } })
 }

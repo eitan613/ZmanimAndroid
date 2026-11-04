@@ -33,7 +33,7 @@ class ReminderScheduler(private val context: Context, private val clock: Clock =
     private fun pendingIntent() = PendingIntent.getBroadcast(context, 100, Intent(context, ReminderReceiver::class.java).setAction("com.example.zmanim.REMINDER"), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun upcoming(data: AppData, from: Instant = clock.instant(), days: Long = 8): List<Due> {
         val results = mutableListOf<Due>()
-        if (data.settings.eventNotifications) for (event in data.events.filter { it.remindersEnabled && it.reminders.isNotEmpty() && (it.exportCalendarId == null || it.reminderOwner == ReminderOwner.APP) }) {
+        if (data.settings.eventNotifications) for (event in data.events.filter { it.remindersEnabled && it.reminders.isNotEmpty() && (it.exportCalendarId == null || it.reminderDeliveryOwner() == ReminderOwner.APP) }) {
             val local = from.atZone(ZoneId.of(event.zoneId)).toLocalDate()
             val lead = event.reminders.maxOf { it.minutesBefore }.coerceAtLeast(0) / 1440 + 2L
             for (o in OccurrenceEngine().expand(event, local.minusDays(2), local.plusDays(days + lead), data)) {
@@ -83,7 +83,9 @@ class ReminderScheduler(private val context: Context, private val clock: Clock =
             .putStringSet("scheduled_ids", candidates.filter { it.at == next.at && canDeliver(it, data.settings) }.map { it.id }.toSet()).apply()
         try {
             if (next.rule.mode == ReminderMode.ALARM) {
-                val show = PendingIntent.getActivity(context, 101, Intent(context, MainActivity::class.java).putExtra("destination", "zmanim"), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                val show = PendingIntent.getActivity(context, 101, Intent(context, MainActivity::class.java)
+                    .putExtra("destination", if (next.eventId == null) "zmanim" else "event")
+                    .putExtra("eventId", next.eventId).putExtra("date", next.date), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 alarms.setAlarmClock(AlarmManager.AlarmClockInfo(next.at.toEpochMilli(), show), pendingIntent())
             } else if (preciseAccess()) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.at.toEpochMilli(), pendingIntent())
             else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.at.toEpochMilli(), pendingIntent())
@@ -129,8 +131,8 @@ class ReminderScheduler(private val context: Context, private val clock: Clock =
     fun createChannels() {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel("reminders", "Event and zmanim reminders", NotificationManager.IMPORTANCE_HIGH))
-        manager.createNotificationChannel(NotificationChannel("zman-alarms", "Ringing zman alarms", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Real alarms with Dismiss and Snooze controls"; setSound(null, null); enableVibration(false)
+        manager.createNotificationChannel(NotificationChannel("zman-alarms", "Ringing alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Event and zmanim alarms with Dismiss and Snooze controls"; setSound(null, null); enableVibration(false)
         })
         manager.createNotificationChannel(NotificationChannel("hebrew-date", "Current Hebrew date", NotificationManager.IMPORTANCE_LOW).apply { setSound(null, null) })
     }

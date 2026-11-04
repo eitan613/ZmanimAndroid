@@ -6,6 +6,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -15,6 +17,75 @@ import androidx.compose.ui.unit.dp
 import com.example.zmanim.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+@Composable fun ReminderOffsets(initial: List<ReminderRule>, allowAlarms: Boolean = false, onChange: (List<ReminderRule>) -> Unit) {
+    initial.forEachIndexed { index, rule ->
+        key(rule.id) {
+            var unit by rememberSaveable(rule.id) { mutableStateOf(ReminderUnit.forMinutes(rule.minutesBefore)) }
+            var amount by rememberSaveable(rule.id) { mutableStateOf((rule.minutesBefore / unit.minutes).coerceAtLeast(1).toString()) }
+            val atTime = rule.minutesBefore == 0
+            fun update(updated: ReminderRule) = onChange(initial.map { if (it.id == rule.id) updated else it })
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(tr("Reminder ${index + 1}", "תזכורת ${index + 1}"), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                        IconButton(onClick = { onChange(initial.filterNot { it.id == rule.id }) }) {
+                            Icon(Icons.Default.Delete, tr("Remove reminder ${index + 1}", "הסרת תזכורת ${index + 1}"))
+                        }
+                    }
+                    Choice(tr("When", "מתי"), atTime, listOf(false, true),
+                        { if (it) tr("At the time", "בזמן המדויק") else tr("Before", "לפני") },
+                        { at -> update(rule.copy(minutesBefore = if (at) 0 else reminderMinutes(amount, unit) ?: -1)) })
+                    if (!atTime) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                            Field(tr("Amount", "כמות"), amount, { value ->
+                                amount = value
+                                update(rule.copy(minutesBefore = reminderMinutes(value, unit) ?: -1))
+                            }, modifier = Modifier.weight(1f), numeric = true)
+                            Choice(tr("Units", "יחידות"), unit, ReminderUnit.entries, { value -> when (value) {
+                                ReminderUnit.MINUTES -> tr("Minutes", "דקות")
+                                ReminderUnit.HOURS -> tr("Hours", "שעות")
+                                ReminderUnit.DAYS -> tr("Days", "ימים")
+                                ReminderUnit.WEEKS -> tr("Weeks", "שבועות")
+                            } }, { value -> unit = value; update(rule.copy(minutesBefore = reminderMinutes(amount, value) ?: -1)) }, Modifier.weight(1.2f))
+                        }
+                        if (reminderMinutes(amount, unit) == null) Text(tr("Enter a whole amount between 1 and ${525600 / unit.minutes}.", "יש להזין כמות שלמה בין 1 ל־${525600 / unit.minutes}."), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    // Older saved reminders may be paused. New rows are active until removed.
+                    if (!rule.enabled) TextButton(onClick = { update(rule.copy(enabled = true)) }) { Text(tr("Paused · enable reminder", "מושהית · הפעלת תזכורת")) }
+                    if (allowAlarms) {
+                        Choice(tr("Delivery", "אופן התזכורת"), rule.mode, ReminderMode.entries,
+                            { if (it == ReminderMode.ALARM) tr("Alarm · rings until dismissed", "שעון מעורר · מצלצל עד לעצירה") else tr("Notification", "התראה") },
+                            { update(rule.copy(mode = it)) })
+                        if (rule.mode == ReminderMode.ALARM) AlarmOptions(rule) { update(it) }
+                    }
+                }
+            }
+        }
+    }
+    OutlinedButton(onClick = { onChange(initial + ReminderRule(minutesBefore = 10)) }) { Text(tr("Add reminder", "הוספת תזכורת")) }
+    if (initial.isEmpty()) Text(tr("No reminders. Add one to get notified.", "אין תזכורות. הוסיפו תזכורת לקבלת התראה."), style = MaterialTheme.typography.bodySmall)
+}
+
+@Composable fun EventAlarmAccess(model: AppViewModel) {
+    val context = LocalContext.current
+    val scheduler = model.app.reminders
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { model.refresh() }
+    if (!scheduler.preciseAccess()) {
+        Notice(tr("Alarms need precise alarm access to ring at the selected time.", "שעונים מעוררים דורשים הרשאת תזמון מדויק כדי לצלצל בזמן שנבחר."))
+        TextButton(onClick = { context.startActivity(scheduler.exactAccessIntent()) }) { Text(tr("Allow precise alarms", "מתן הרשאת תזמון מדויק")) }
+    }
+    if (!scheduler.notificationAccess("zman-alarms")) {
+        Notice(tr("Allow alarm notifications so Dismiss and Snooze are available.", "יש לאפשר התראות שעון מעורר כדי להשתמש בעצירה ובנודניק."))
+        TextButton(onClick = {
+            if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            else context.startActivity(Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName).putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "zman-alarms"))
+        }) { Text(tr("Allow alarm notifications", "מתן הרשאת התראות שעון")) }
+    }
+    if (scheduler.preciseAccess() && scheduler.notificationAccess("zman-alarms")) Text(tr("Alarm permissions are ready. Alarms ring until dismissed or snoozed.", "הרשאות השעון המעורר מוכנות. השעונים מצלצלים עד לעצירה או להפעלת נודניק."), style = MaterialTheme.typography.bodySmall)
+}
 
 @Composable fun AlarmOptions(rule: ReminderRule, onChange: (ReminderRule) -> Unit) {
     val context = LocalContext.current

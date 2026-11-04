@@ -234,26 +234,6 @@ import kotlinx.serialization.encodeToString
         dismissButton = { TextButton(onClick = { open = false }) { Text(tr("Cancel", "ביטול")) } })
 }
 
-@Composable fun ReminderOffsets(initial: List<ReminderRule>, allowAlarms: Boolean = false, onChange: (List<ReminderRule>) -> Unit) {
-    initial.forEach { rule ->
-        var minutes by rememberSaveable(rule.id, rule.minutesBefore) { mutableStateOf(rule.minutesBefore.toString()) }
-        Section(if (rule.minutesBefore == 0) tr("At the time", "בזמן המדויק") else tr("${rule.minutesBefore} minutes before", "${rule.minutesBefore} דקות לפני")) {
-            Toggle(tr("Enabled", "פעיל"), rule.enabled, { enabled -> onChange(initial.map { if (it.id == rule.id) it.copy(enabled = enabled) else it }) })
-            Field(tr("Minutes before (0 = at the time)", "דקות לפני (0 = בזמן המדויק)"), minutes, { value ->
-                minutes = value
-                onChange(initial.map { if (it.id == rule.id) it.copy(minutesBefore = value.toIntOrNull() ?: -1) else it })
-            }, numeric = true)
-            if (allowAlarms) Choice(tr("Delivery", "אופן התזכורת"), rule.mode, ReminderMode.entries,
-                { if (it == ReminderMode.ALARM) tr("Alarm · rings until dismissed", "שעון מעורר · מצלצל עד לעצירה") else tr("Notification", "התראה") },
-                { mode -> onChange(initial.map { if (it.id == rule.id) it.copy(mode = mode) else it }) })
-            if (allowAlarms && rule.mode == ReminderMode.ALARM) AlarmOptions(rule) { updated -> onChange(initial.map { if (it.id == rule.id) updated else it }) }
-            TextButton(onClick = { onChange(initial.filterNot { it.id == rule.id }) }) { Text(tr("Remove reminder", "הסרת תזכורת")) }
-        }
-    }
-    OutlinedButton(onClick = { onChange(initial + ReminderRule()) }) { Text(tr("Add reminder", "הוספת תזכורת")) }
-    if (initial.isEmpty()) Text(tr("No reminders configured. Permission alone does not create reminders.", "לא הוגדרו תזכורות. מתן הרשאה בלבד אינו יוצר תזכורות."), style = MaterialTheme.typography.bodySmall)
-}
-
 @Composable private fun FormulaEditor(initial: CustomZman, profile: Profile, s: ScreenData, onSave: suspend (CustomZman) -> Unit, onDismiss: () -> Unit) {
     var draft by rememberDraft("formula-${initial.id}", initial)
     var amount by rememberSaveable { mutableStateOf(initial.amount.toString()) }
