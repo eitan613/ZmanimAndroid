@@ -54,68 +54,84 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
         val jewish = date?.let { com.kosherjava.zmanim.hebrewcalendar.JewishDate(it) }
         val formatter = CalendarEngine().formatter(data.settings.labels == LabelLanguage.HEBREW)
         val day = date?.let { if (config.calendar == CalendarSystem.HEBREW) CalendarEngine().formatter(true).formatHebrewNumber(jewish!!.jewishDayOfMonth).replace("׳", "").replace("״", "") else it.dayOfMonth.toString() } ?: "—"
-        val month = if (date == null) text("Choose location", "בחירת מקום") else if (config.calendar == CalendarSystem.HEBREW)
-            "${formatter.formatMonth(jewish!!)} ${if (data.settings.labels == LabelLanguage.HEBREW) formatter.formatHebrewNumber(jewish.jewishYear) else jewish.jewishYear}" else date.format(DateTimeFormatter.ofPattern("MMMM yyyy", locale))
+        val hebrew = config.calendar == CalendarSystem.HEBREW
+        val hebrewLabels = data.settings.labels == LabelLanguage.HEBREW
+        val monthName = if (date == null) text("Choose location", "בחירת מקום") else if (hebrew)
+            formatter.formatMonth(jewish!!) else date.format(DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH))
+        val year = if (hebrew && jewish != null) {
+            if (hebrewLabels) formatter.formatHebrewNumber(jewish.jewishYear) else jewish.jewishYear.toString()
+        } else date?.year?.toString().orEmpty()
+        val month = "$monthName $year"
         val compact = size.width < 150.dp
         val onDate = Color(0xFFF7FCFC)
         val dateMuted = Color(0xFFCAE3E2)
-        val weekday = weekdayLabel(today.dayOfWeek, data.settings.labels == LabelLanguage.HEBREW, locale)
-        val secondary = if (config.calendar == CalendarSystem.HEBREW) today.format(DateTimeFormatter.ofPattern("dd/MM", locale))
-            else hebrewDate?.let { CalendarEngine().dateLabel(it, data.settings.labels == LabelLanguage.HEBREW) } ?: text("Set app location", "הגדרת מיקום האפליקציה")
-        val open = if (place == null && (config.calendar == CalendarSystem.HEBREW || config.sunsetRollover))
+        val weekday = dateWidgetWeekday((date ?: today).dayOfWeek, hebrew && hebrewLabels)
+        val secondary = if (hebrew) "\u2066${today.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))}\u2069"
+            else hebrewDate?.let { CalendarEngine().dateLabel(it, hebrewLabels) } ?: text("Set app location", "הגדרת מיקום האפליקציה")
+        val open = if (place == null && (hebrew || config.sunsetRollover))
             Intent(openCalendar).putExtra("destination", "location") else if (config.openingView == OpeningView.ZMANIM) openZmanim else openCalendar
         val fontScale = context.resources.configuration.fontScale.coerceAtLeast(1f)
-        val short = size.height.value / fontScale < 100f
-        if (short) {
-            val dayWidth = (size.width.value * 0.40f).coerceAtMost(64f)
-            val baseDayFont = 32f / fontScale
-            val dayPaint = android.text.TextPaint().apply {
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                textSize = baseDayFont * context.resources.displayMetrics.scaledDensity
+        val contentWidth = (size.width.value - padding.value * 2).coerceAtLeast(1f)
+        fun fitted(value: String, base: Float, width: Float, bold: Boolean = false): androidx.compose.ui.unit.TextUnit {
+            val font = base / fontScale
+            val paint = android.text.TextPaint().apply {
+                typeface = if (bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                textSize = font * context.resources.displayMetrics.scaledDensity
             }
-            val dayFont = baseDayFont * ((dayWidth - 2f) * context.resources.displayMetrics.density / dayPaint.measureText(day).coerceAtLeast(1f)).coerceAtMost(1f)
-            // A short launcher cell has room for columns, not three stacked date lines.
+            return (font * ((width - 2f).coerceAtLeast(1f) * context.resources.displayMetrics.density / paint.measureText(value).coerceAtLeast(1f)).coerceAtMost(1f)).sp
+        }
+        if (compact) {
+            // Keep the original stacked badge in a single launcher cell, including short cells.
+            // TextView includes font padding on Samsung; reserve that space for all four lines.
+            val height = ((size.height.value - padding.value * 2 - 4f) / 1.2f).coerceAtLeast(1f)
+            Column(root.clickable(actionStartActivity(open)), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(weekday, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(dateMuted), fontSize = fitted(weekday, (height * .14f).coerceAtMost(11f), contentWidth), textAlign = TextAlign.Center), maxLines = 1)
+                Text(day, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = fitted(day, (height * .38f).coerceAtMost(44f), contentWidth, true), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+                Text(monthName, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(onDate), fontSize = fitted(monthName, (height * .16f).coerceAtMost(14f), contentWidth, true), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+                Text(year, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(dateMuted), fontSize = fitted(year, (height * .14f).coerceAtMost(11f), contentWidth), textAlign = TextAlign.Center), maxLines = 1)
+            }
+        } else {
+            val dayWidth = (contentWidth * .30f).coerceAtMost(64f)
+            val detailWidth = contentWidth - dayWidth
+            val align = if (hebrew) TextAlign.Right else TextAlign.Left
+            val short = size.height.value / fontScale < 100f
             Row(root.clickable(actionStartActivity(open)), verticalAlignment = Alignment.CenterVertically) {
                 Text(day, modifier = GlanceModifier.width(dayWidth.dp),
-                    style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = dayFont.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
+                    style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = fitted(day, if (short) 32f else 46f, dayWidth, true), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
                 Column(GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(weekday, style = TextStyle(color = ColorProvider(dateMuted), fontSize = (9f / fontScale).sp), maxLines = 1)
-                    val shortMonth = if (date != null && config.calendar == CalendarSystem.GREGORIAN) date.format(DateTimeFormatter.ofPattern("MMM yyyy", locale)) else month
-                    Text(shortMonth, style = TextStyle(color = ColorProvider(onDate), fontSize = ((if (compact) 8f else 11f) / fontScale).sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                    Text(secondary, style = TextStyle(color = ColorProvider(dateMuted), fontSize = (9f / fontScale).sp), maxLines = 1)
+                    Text(weekday, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(dateMuted), fontSize = fitted(weekday, if (short) 11f else 13f, detailWidth), textAlign = align), maxLines = 1)
+                    Text(month, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(onDate), fontSize = fitted(month, if (short) 12f else 16f, detailWidth, true), fontWeight = FontWeight.Bold, textAlign = align), maxLines = 1)
+                    Text(secondary, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(color = ColorProvider(dateMuted), fontSize = fitted(secondary, if (short) 10f else 12f, detailWidth), textAlign = align), maxLines = 1)
                 }
-            }
-        } else Column(root.clickable(actionStartActivity(open)), verticalAlignment = Alignment.CenterVertically, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(weekday + if (!compact && config.calendar == CalendarSystem.HEBREW) " · ${today.year}" else "", style = TextStyle(color = ColorProvider(dateMuted), fontSize = 11.sp), maxLines = 1)
-            if (compact) {
-                Text(day, style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = if (size.height < 140.dp) 32.sp else 40.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                Text(month, style = TextStyle(color = ColorProvider(onDate), fontSize = 11.sp, textAlign = TextAlign.Center), maxLines = 2)
-                Text(secondary, style = TextStyle(color = ColorProvider(dateMuted), fontSize = 9.sp), maxLines = 1)
-            } else Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(GlanceModifier.defaultWeight()) {
-                    Text(month, style = TextStyle(color = ColorProvider(onDate), fontSize = if (size.width >= 220.dp) 16.sp else 12.sp, fontWeight = FontWeight.Bold), maxLines = 2)
-                    Text(secondary, style = TextStyle(color = ColorProvider(dateMuted), fontSize = 11.sp), maxLines = 2)
-                }
-                Text(day, modifier = GlanceModifier.width(60.dp), style = TextStyle(color = ColorProvider(Color(0xFFF8D996)), fontSize = 46.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center), maxLines = 1)
             }
         }
     } else if (kind == WidgetKind.COMBINED) {
         val compact = size.height < 140.dp
-        Column(root.clickable(actionStartActivity(openCalendar))) {
-            Text(hebrewDate?.let { CalendarEngine().dateLabel(it, data.settings.labels == LabelLanguage.HEBREW) }
-                ?: text("Choose location for Hebrew date", "בחירת מקום לתאריך העברי"), style = TextStyle(color = ColorProvider(ink), fontSize = if (compact) 16.sp else if (size.width >= 260.dp) 25.sp else 20.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-            Text(today.format(DateTimeFormatter.ofPattern(if (compact) "EEE · d MMM yyyy" else "EEEE · d MMM yyyy", locale)), style = TextStyle(color = ColorProvider(muted), fontSize = if (compact) 10.sp else 12.sp), maxLines = 1)
-            Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
-            if (rows.isEmpty()) Text(text("Choose learning rows in widget settings", "בחירת שורות לימוד בהגדרות היישומון"), style = TextStyle(color = ColorProvider(muted), fontSize = 12.sp))
-            LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
-                items(rows) { row ->
-                    Column(GlanceModifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Text(row.title, style = TextStyle(color = ColorProvider(accent), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                        Text(row.subtitle, style = TextStyle(color = ColorProvider(ink), fontSize = if (compact) 12.sp else 15.sp), maxLines = 2)
-                    }
+        val align = if (data.settings.labels == LabelLanguage.HEBREW) TextAlign.Right else TextAlign.Left
+        val open = if (config.openingView == OpeningView.ZMANIM) openZmanim else openCalendar
+        // One native collection owns the entire surface so swipes over the dates
+        // and learning rows both scroll. Tap actions belong to individual items.
+        LazyColumn(root) {
+            item(itemId = 0L) {
+                Column(GlanceModifier.fillMaxWidth().clickable(actionStartActivity(open))) {
+                    Text(hebrewDate?.let { CalendarEngine().dateLabel(it, data.settings.labels == LabelLanguage.HEBREW) }
+                        ?: text("Choose location for Hebrew date", "בחירת מקום לתאריך העברי"), modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(textAlign = align, color = ColorProvider(ink), fontSize = if (compact) 16.sp else if (size.width >= 260.dp) 25.sp else 20.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    Text(today.format(DateTimeFormatter.ofPattern(if (compact) "EEE · d MMM yyyy" else "EEEE · d MMM yyyy", locale)), modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(textAlign = align, color = ColorProvider(muted), fontSize = if (compact) 10.sp else 12.sp), maxLines = 1)
+                    Spacer(GlanceModifier.height(if (compact) 4.dp else 10.dp))
                 }
             }
-            if (dateError != null && !compact) Text(text("Set app location for sunset updates", "יש לבחור מיקום לאפליקציה לעדכון בשקיעה"), style = TextStyle(color = ColorProvider(muted), fontSize = 10.sp), maxLines = 1)
+            if (config.learning.isEmpty()) item(itemId = 1L) {
+                Text(text("Choose learning rows in widget settings", "בחירת שורות לימוד בהגדרות היישומון"), modifier = GlanceModifier.fillMaxWidth().clickable(actionStartActivity(open)), style = TextStyle(textAlign = align, color = ColorProvider(muted), fontSize = 12.sp))
+            }
+            items(rows) { row ->
+                Column(GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(actionStartActivity(row.intent))) {
+                    Text(row.title, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(textAlign = align, color = ColorProvider(accent), fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                    Text(row.subtitle, modifier = GlanceModifier.fillMaxWidth(), style = TextStyle(textAlign = align, color = ColorProvider(ink), fontSize = if (compact) 12.sp else 15.sp), maxLines = 2)
+                }
+            }
+            if (dateError != null && !compact) item(itemId = 2L) {
+                Text(text("Set app location for sunset updates", "יש לבחור מיקום לאפליקציה לעדכון בשקיעה"), modifier = GlanceModifier.fillMaxWidth().clickable(actionStartActivity(open)), style = TextStyle(textAlign = align, color = ColorProvider(muted), fontSize = 10.sp), maxLines = 1)
+            }
         }
     } else {
         Column(root) {
@@ -155,3 +171,8 @@ internal fun AppData.widgetPlace(config: WidgetConfig): Place? =
         }
     }
 }
+
+/** Date badges use full weekday names independently of the abbreviated calendar-grid headers. */
+internal fun dateWidgetWeekday(day: DayOfWeek, hebrew: Boolean): String = if (hebrew)
+    listOf("יום שני", "יום שלישי", "יום רביעי", "יום חמישי", "יום שישי", "שבת", "יום ראשון")[day.value - 1]
+else day.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)

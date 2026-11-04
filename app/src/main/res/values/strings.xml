@@ -24,4 +24,9 @@
     <string name="preview_hebrew_month" translatable="false">חשון תשפ״ז</string>
     <string name="preview_gregorian_day" translatable="false">4</string>
     <string name="preview_gregorian_month" translatable="false">November 2026</string>
+    <string name="preview_hebrew_weekday" translatable="false">יום רביעי</string>
+    <string name="preview_hebrew_month_name" translatable="false">חשון</string>
+    <string name="preview_hebrew_year" translatable="false">תשפ״ז</string>
+    <string name="preview_gregorian_month_name" translatable="false">November</string>
+    <string name="preview_gregorian_year" translatable="false">2026</string>
 </resources>

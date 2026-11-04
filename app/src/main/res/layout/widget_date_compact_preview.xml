@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:padding="8dp"
+    android:background="@drawable/widget_date_background">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/preview_hebrew_weekday" android:textColor="#CAE3E2" android:textSize="11sp" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/preview_hebrew_day" android:textColor="#F8D996" android:textSize="30sp" android:textStyle="bold" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/preview_hebrew_month_name" android:textColor="#F7FCFC" android:textSize="12sp" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/preview_hebrew_year" android:textColor="#CAE3E2" android:textSize="10sp" />
+</LinearLayout>

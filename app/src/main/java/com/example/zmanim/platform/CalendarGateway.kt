@@ -59,6 +59,78 @@ class CalendarGateway(private val context: Context) {
         }
     }
     fun viewIntent(providerId: Long) = Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, providerId))
+    /** Editable fields for the selected instance, retaining arbitrary external series rules. */
+    fun instanceEvent(occurrence: Occurrence): Event? {
+        if (!canRead()) return null
+        val current = instance(occurrence.providerId!!, occurrence.start!!.toEpochMilli()) ?: return null
+        return resolver.query(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, current.providerId!!),
+            arrayOf("description", "eventLocation"), null, null, null)?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            val zone = if (current.allDay) ZoneOffset.UTC else ZoneId.of(current.zoneId)
+            val start = current.start!!.atZone(zone)
+            val end = current.end!!.atZone(zone)
+            Event(id = current.key, title = current.title, description = cursor.getString(0).orEmpty(), venue = cursor.getString(1).orEmpty(),
+                anchorDate = start.toLocalDate().toString(), localTime = start.toLocalTime().toString(), zoneId = current.zoneId,
+                timeKind = if (current.allDay) EventTimeKind.ALL_DAY else EventTimeKind.FIXED,
+                durationMinutes = Duration.between(start.toLocalDateTime(), end.toLocalDateTime()).toMinutes(), reminderOwner = ReminderOwner.CALENDAR)
+        }
+    }
+
+    /** Update an ordinary event, or create an exception for exactly one recurring instance. */
+    fun updateInstance(occurrence: Occurrence, original: Event, edited: Event): Long {
+        check(canWrite()) { "Calendar write access is required." }
+        require(calendars().any { it.id == occurrence.sourceCalendarId && it.writable }) { "Choose a writable calendar." }
+        require(edited.title.isNotBlank()) { "Enter an event title." }
+        require(edited.durationMinutes > 0) { "Enter a positive duration." }
+        val providerId = occurrence.providerId!!
+        check(instance(providerId, occurrence.start!!.toEpochMilli()) != null) { "This occurrence is no longer available." }
+        val date = LocalDate.parse(edited.anchorDate)
+        val allDay = edited.timeKind == EventTimeKind.ALL_DAY
+        val timesUnchanged = edited.anchorDate == original.anchorDate && edited.localTime == original.localTime &&
+            edited.durationMinutes == original.durationMinutes && edited.timeKind == original.timeKind
+        val (start, end) = if (timesUnchanged) occurrence.start to occurrence.end!! else if (allDay) {
+            require(edited.durationMinutes % 1440 == 0L) { "All-day duration must be whole days." }
+            date.atStartOfDay(ZoneOffset.UTC).toInstant() to date.plusDays(edited.durationMinutes / 1440).atStartOfDay(ZoneOffset.UTC).toInstant()
+        } else {
+            val local = LocalDateTime.of(date, LocalTime.parse(edited.localTime))
+            val intervals = localIntervalSegments(local, local.plusMinutes(edited.durationMinutes), ZoneId.of(edited.zoneId))
+            require(intervals.size == 1) { "This time crosses a clock change. Choose another time." }
+            intervals.single()
+        }
+        val values = ContentValues().apply {
+            put(CalendarContract.Events.TITLE, edited.title); put(CalendarContract.Events.DESCRIPTION, edited.description)
+            put(CalendarContract.Events.EVENT_LOCATION, edited.venue)
+            put(CalendarContract.Events.DTSTART, start.toEpochMilli()); put(CalendarContract.Events.DTEND, end.toEpochMilli())
+            put(CalendarContract.Events.ALL_DAY, if (allDay) 1 else 0)
+            put(CalendarContract.Events.EVENT_TIMEZONE, if (allDay) "UTC" else edited.zoneId)
+        }
+        val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, providerId)
+        val recurring = resolver.query(uri, arrayOf("rrule", "rdate", "_sync_id"), null, null, null)?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use false
+            val repeats = !cursor.getString(0).isNullOrBlank() || !cursor.getString(1).isNullOrBlank()
+            if (repeats) {
+                // Android's unsynced-series exception path drops cached sibling instances.
+                // Reject before writing; synced RRULE events use the supported exception path.
+                check(!cursor.getString(0).isNullOrBlank() && !cursor.getString(2).isNullOrBlank()) {
+                    "This calendar does not support editing a single occurrence here."
+                }
+            }
+            repeats
+        } ?: false
+        return if (recurring) {
+            // CalendarProvider derives an exception's DTEND from DURATION and copies
+            // the original all-day flag, attendees, and reminders itself.
+            values.remove(CalendarContract.Events.DTEND)
+            values.put(CalendarContract.Events.DURATION, if (allDay) "P${Duration.between(start, end).toDays()}D" else "PT${Duration.between(start, end).seconds}S")
+            values.put(CalendarContract.Events.ORIGINAL_INSTANCE_TIME, occurrence.start.toEpochMilli())
+            val id = ContentUris.parseId(checkNotNull(resolver.insert(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_EXCEPTION_URI, providerId), values)))
+            check(id > 0) { "This recurrence rule cannot be edited here yet." }
+            id
+        } else {
+            check(resolver.update(uri, values, null, null) == 1) { "This event is no longer available." }
+            providerId
+        }
+    }
     fun invitationIntent(event: Event): Intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI).apply {
         putExtra(CalendarContract.Events.TITLE, event.title)
         putExtra(CalendarContract.Events.DESCRIPTION, event.description)

@@ -72,6 +72,47 @@ class CalendarGatewayTest {
         gateway.deleteOrdinary(id)
         assertNull(gateway.ordinaryEvent(id))
     }
+    @Test fun editingOneDeviceCalendarInstancePreservesTheSeriesAndReminders() {
+        val date = LocalDate.now(ZoneId.of("Asia/Jerusalem"))
+        val event = Event(title = "Instance edit test", anchorDate = date.toString(), zoneId = "Asia/Jerusalem",
+            recurrence = Recurrence(Frequency.DAILY, count = 3), reminders = listOf(ReminderRule(minutesBefore = 10)))
+        val providerId = gateway.saveOrdinary(event, calendarId)
+        val from = date.atStartOfDay(ZoneId.of(event.zoneId)).toInstant()
+        val before = gateway.instances(from, from.plus(Duration.ofDays(4)), setOf(calendarId))
+        assertEquals(3, before.size)
+        val selected = before[1]
+        val original = gateway.instanceEvent(selected)!!
+        assertEquals(selected.date.toString(), original.anchorDate)
+        assertTrue("Unsupported unsynced recurrence is rejected before any write", runCatching {
+            gateway.updateInstance(selected, original, original.copy(title = "Rejected edit"))
+        }.isFailure)
+        assertEquals(3, gateway.instances(from, from.plus(Duration.ofDays(4)), setOf(calendarId)).size)
+        // Model an event already synchronized by its owning calendar account.
+        val synced = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, providerId).buildUpon()
+            .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, "zmanim-integration-tests")
+            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL).build()
+        context.contentResolver.update(synced, ContentValues().apply { put(CalendarContract.Events._SYNC_ID, "instance-edit-series") }, null, null)
+        val exceptionId = gateway.updateInstance(selected, original, original.copy(title = "Changed instance"))
+        assertNotEquals(providerId, exceptionId)
+        val after = gateway.instances(from, from.plus(Duration.ofDays(4)), setOf(calendarId))
+        val stored = context.contentResolver.query(CalendarContract.Events.CONTENT_URI, arrayOf("_id", "rrule", "dtstart", "dtend", "duration", "original_id", "originalInstanceTime"), "calendar_id = ?", arrayOf(calendarId.toString()), null)!!.use { cursor ->
+            buildList { while (cursor.moveToNext()) add((0 until cursor.columnCount).joinToString { cursor.getString(it).orEmpty() }) }.joinToString("; ")
+        }
+        assertEquals("Stored: $stored; instances: ${after.map { it.key }}", 3, after.size)
+        assertEquals(listOf("Instance edit test", "Changed instance", "Instance edit test"), after.map { it.title })
+        assertEquals(before.map { it.start }, after.map { it.start })
+        for (id in listOf(providerId, exceptionId)) {
+            context.contentResolver.query(CalendarContract.Reminders.CONTENT_URI, arrayOf("minutes"), "event_id = ?", arrayOf(id.toString()), null)!!.use {
+                assertTrue("Original reminder follows selected instance", it.moveToFirst())
+                assertEquals(10, it.getInt(0))
+            }
+        }
+        val ordinary = before[0].copy(providerId = exceptionId, start = selected.start, date = selected.date)
+        val current = gateway.instanceEvent(ordinary)!!
+        assertEquals(exceptionId, gateway.updateInstance(ordinary, current, current.copy(venue = "Changed venue")))
+        assertEquals(3, gateway.instances(from, from.plus(Duration.ofDays(4)), setOf(calendarId)).size)
+    }
     @Test fun convertingAProviderEventToAManagedRuleAdoptsItsRecordInsteadOfDuplicatingIt() {
         val today = LocalDate.now(ZoneId.of("Asia/Jerusalem"))
         val existing = Event(title = "Adopted event", anchorDate = today.toString(), zoneId = "Asia/Jerusalem")

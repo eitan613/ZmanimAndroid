@@ -553,25 +553,24 @@ another root is specified.
 
 ## Widgets
 
-- [ ] **W01 — Separate Hebrew/Gregorian date widgets, including 1×1.**
+- [x] **W01 — Separate Hebrew/Gregorian date widgets, including 1×1.**
   - Reference: first pasted image contains weekday, large Hebrew day, month, and
     Hebrew year. Match that information using our own styling.
   - Decision: separate calendar widget entries replace required calendar-type
     selection. Support actual 1×1 and 2×1 sizes through resizing or separate
     providers as launcher behavior requires.
-  - Plan: define minimum/target cells and useful launcher previews; work from app
-    defaults without mandatory setup. Optional reconfiguration can select the
-    calendar/view or zmanim opening destination.
+  - Implementation: explicit 1×1 Hebrew/Gregorian providers with stacked previews
+    and configuration for the calendar/zmanim opening destination; existing
+    2×1 entries remain available with optional configuration.
   - Touchpoints: widgets/WidgetPresentation.kt, widgets/ZmanimWidgets.kt,
     widgets/WidgetConfigurationActivity.kt, AndroidManifest.xml, res/xml/widget_*.
   - Verify: actual 1×1/2×1 placement/resizing/previews, long months, large text,
     both themes, and all opening destinations.
 
 - [x] **W02 — Make 2×1 date widgets consistent and complementary.**
-  - Decision: both show weekday. Hebrew-primary shows Hebrew day/month/year,
-    Gregorian year after weekday, and Gregorian dd/mm. Gregorian-primary shows
-    its main date and a smaller Hebrew date rather than repeating Gregorian
-    dd/mm at the bottom.
+  - Decision: both show full weekdays. Hebrew-primary right-aligns its labels
+    and puts the Gregorian year at the end of its secondary date. Gregorian-primary
+    always uses English weekdays and shows a smaller Hebrew date.
   - Plan: share primary/weekday/secondary hierarchy and bidi handling with
     meaningful compact variants.
   - Verify: exact information above, narrow/tall/wide sizes, Hebrew leap months,

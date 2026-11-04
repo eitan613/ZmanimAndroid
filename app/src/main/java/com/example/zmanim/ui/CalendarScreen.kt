@@ -123,7 +123,7 @@ import kotlin.math.*
                             val category = day.category ?: if (day.candleLighting) "candles" else null
                             val tint = category?.let { Color(settings.specialDayColor(it).toInt()) }
                             val bg = if (settings.colorSpecialDays && tint != null && !effectiveDark(settings)) tint else base
-                            val onCell = if (bg.luminance() < 0.3f) Color.White else Color(0xFF172C3D)
+                            val onCell = (if (bg.luminance() < 0.3f) Color.White else Color(0xFF172C3D)).copy(alpha = alpha)
                             val today = day.date == LocalDate.now(s.data.place()?.zone() ?: ZoneId.systemDefault())
                             Column(Modifier.weight(1f).height(cellHeight).background(bg)
                                 .border(if (selected || today) 2.dp else 0.5.dp,
@@ -143,18 +143,19 @@ import kotlin.math.*
                                     if (settings.primaryCalendar == CalendarSystem.HEBREW) day.date.dayOfMonth.toString()
                                     else engine.formatter(true).formatHebrewNumber(day.hebrewDay).replace("׳", "").replace("״", ""),
                                     onCell.copy(alpha = alpha), selected)
-                                Column(Modifier.weight(1f)) {
-                                    listOf(day.holiday, day.parsha, day.specialParsha, day.omer).filter { it.isNotEmpty() }.forEach { label ->
+                                Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center,
+                                    horizontalAlignment = Alignment.CenterHorizontally) {
+                                    listOf(day.holiday, day.parsha, day.specialParsha, day.omer).filter { it.isNotEmpty() }.flatMap { it.split(" · ") }.forEach { label ->
                                         CalendarCellLabel(label, onCell.copy(alpha = alpha * 0.9f))
                                     }
-                                }
-                                if (count > 0) {
-                                    if (settings.showEventBasics) {
-                                        val event = dayEvents.first()
-                                        val clock = event.start?.let { TimeFormatting.format(it, ZoneId.of(event.zoneId), settings.copy(showSeconds = false), DateFormat.is24HourFormat(LocalContext.current), locale) }
-                                        Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
-                                        if (count > 1) Text(tr("+${count - 1} more", "+${count - 1} נוספים"), maxLines = 1, style = MaterialTheme.typography.labelSmall, color = onCell)
-                                    } else Text("• $count", style = MaterialTheme.typography.labelSmall, color = onCell)
+                                    if (count > 0) {
+                                        if (settings.showEventBasics) {
+                                            val event = dayEvents.first()
+                                            val clock = event.start?.let { TimeFormatting.format(it, ZoneId.of(event.zoneId), settings.copy(showSeconds = false), DateFormat.is24HourFormat(LocalContext.current), locale) }
+                                            Text((if (event.allDay) "" else clock?.let { "\u2066$it\u2069 " }.orEmpty()) + event.title, modifier = Modifier.fillMaxWidth().testTag("cellEvent:${day.date}"), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = onCell)
+                                            if (count > 1) Text(tr("+${count - 1} more", "+${count - 1} נוספים"), maxLines = 1, style = MaterialTheme.typography.labelSmall, color = onCell)
+                                        } else Text("• $count", style = MaterialTheme.typography.labelSmall, color = onCell)
+                                    }
                                 }
                             }
                         }
@@ -295,9 +296,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val width = with(density) { maxWidth.toPx() }.coerceAtLeast(1f)
-        val words = text.replace("ראש חודש ", "ר״ח ").replace("פרשת ", "").split(Regex("\\s+"))
+        val compact = text.replace("ראש חודש ", "ר״ח ").replace("פרשת ", "")
+        val singleLine = compact.startsWith("ר״ח ") || compact.startsWith("Rosh Chodesh ")
+        val words = compact.split(Regex("\\s+"))
         val lines = remember(text, width, style, density.fontScale) {
-            buildList {
+            if (singleLine) listOf(compact) else buildList {
                 var line = ""
                 for (word in words) {
                     val candidate = if (line.isBlank()) word else "$line $word"
@@ -311,7 +314,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.scheduleItems(
             lines.forEach { line ->
                 val measured = measurer.measure(line, style).size.width.coerceAtLeast(1)
                 val scale = (width / measured).coerceAtMost(1f)
-                Text(line, softWrap = false, maxLines = 1, style = style.copy(fontSize = style.fontSize * scale), color = color)
+                Text(line, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, softWrap = false, maxLines = 1, style = style.copy(fontSize = style.fontSize * scale), color = color)
             }
         }
     }

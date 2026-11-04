@@ -41,7 +41,11 @@ class WidgetRenderingTest {
                 fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
                 val views = descendants(rendered)
                 val text = views.filterIsInstance<TextView>().joinToString(" ") { it.text.toString() }
-                assertTrue("Widget must render text: $kind", text.isNotBlank())
+                if (kind == WidgetKind.COMBINED) {
+                    // Its dates and learning rows now belong to the native collection;
+                    // the attached-host regression verifies their visible text and swipes.
+                    assertTrue(views.any { it is android.widget.AdapterView<*> })
+                } else assertTrue("Widget must render text: $kind", text.isNotBlank())
                 if (kind == WidgetKind.EVENTS) assertTrue(text.contains("Widget event"))
                 if (kind == WidgetKind.ZMANIM) {
                     assertTrue(views.any { it is android.widget.AdapterView<*> })

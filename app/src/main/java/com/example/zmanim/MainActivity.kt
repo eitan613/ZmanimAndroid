@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
                 val target = when (destination) {
                     "settings" -> "settings"
                     "zmanim" -> "zmanim"
-                    "calendar", "location", "today" -> "calendar"
+                    "calendar", "location", "today", "event" -> "calendar"
                     else -> if (settings.openingView == OpeningView.ZMANIM && eventId == null && providerId == null) "zmanim" else "calendar"
                 }
                 // A single launch effect decides destination and date before opening details.
@@ -115,13 +115,25 @@ class MainActivity : ComponentActivity() {
                         val occurrences = OccurrenceEngine().expand(event, date, date.plusDays(1), current.data)
                         val occurrence = occurrences.find { it.start?.toEpochMilli() == instanceStart } ?: occurrences.firstOrNull()
                         if (occurrence == null) model.message.emit("This occurrence is no longer available.") else {
-                            model.select(date); editing = event; occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "event-detail"
+                            model.select(date); editing = event
+                            if (destination == "event") {
+                                occurrenceSnapshot = if (event.recurrence.frequency == Frequency.NONE) null
+                                    else OccurrenceSnapshot.from(occurrence.copy(key = "single"))
+                                dialog = "event"
+                            } else {
+                                occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "event-detail"
+                            }
                         }
                     }
                 } else if (providerId != null && instanceStart != null) {
                     val occurrence = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { model.app.calendars.instance(providerId, instanceStart) }
                     if (occurrence == null) model.message.emit("This device-calendar occurrence is no longer available.")
-                    else { model.select(occurrence.date); occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-detail" }
+                    else {
+                        model.select(occurrence.date)
+                        if (destination == "event") {
+                            occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-event"
+                        } else { occurrenceSnapshot = OccurrenceSnapshot.from(occurrence); dialog = "provider-detail" }
+                    }
                 }
                 initialNavigationDone = true; handledLaunch = request
             }
@@ -182,6 +194,7 @@ class MainActivity : ComponentActivity() {
                             }
                             when (dialog) {
                                 "event" -> EventEditor(s, model, editing, selectedOccurrence, nativeId, nativeCalendar, { dialog = null })
+                                "provider-event" -> selectedOccurrence?.let { o -> ProviderEventEditor(s, model, o) { dialog = null } }
                                 "event-detail" -> selectedOccurrence?.let { o -> EventDetails(s, model, o, onDismiss = { dialog = null }, onEdit = { scopeChoice ->
                                     dialog = "event"; nativeId = null; nativeCalendar = null
                                     if (scopeChoice == "series") occurrenceSnapshot = null

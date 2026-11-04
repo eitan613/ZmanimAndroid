@@ -45,6 +45,7 @@ The bottom bar opens Gregorian month, Hebrew month, week, day, and zmanim views.
 The three-dot menu contains Today, Go to date, search, Settings, app location, and bundled offline Help. In month view, swipe left/right to change months and up/down to change years.
 The swap setting exchanges these axes; accessible period actions are also available.
 Double-tap an empty hour in week/day view to create an event at that date/time.
+Adjacent-month cells mute event text and counts along with their dates and holidays.
 
 Choose zmanim from the zmanim screen's menu; each selection saves immediately.
 Custom zmanim can be created directly from the Custom group or menu using minute
@@ -73,8 +74,19 @@ be reset. Permission status is separate from app feature switches; Android app
 permissions can be managed from Settings. Selective JSON backups include the
 new settings and profile options. Widgets remain independently configurable.
 Every widget follows app location. Separate Hebrew and Gregorian date widgets
-support 1 × 1 and 2 × 1 layouts with optional configuration. The daily overview
-has selectable, ordered learning rows independent of zman profiles. All zmanim
+have separate 1 × 1 and 2 × 1 launcher entries. The 1 × 1 badges stack weekday,
+day, month, and year and offer calendar/zmanim opening choices during setup.
+The Hebrew 2 × 1 widget right-aligns full weekday/date labels and ends its
+Gregorian date with the year; the Gregorian widget always uses English weekdays.
+The daily overview
+has selectable, ordered learning rows independent of zman profiles. Hebrew rows
+are right-aligned; holiday, Rosh Chodesh, and Omer rows appear only when applicable.
+Dates and learning rows scroll together, so a swipe can start on either.
+Selecting the events widget's Event tap action opens the event editor inside
+Zmanim. Connected calendar edits apply to the selected instance in its original
+calendar, preserving the rest of a recurring series. Read-only calendars and
+unsupported unsynced recurring events cannot be saved from this editor.
+All zmanim
 rows scroll together; each upcoming timed row can use a native countdown with
 seconds. App countdowns also show seconds beyond an hour. Widget layouts and
 colors follow actual allocated size and the selected theme.

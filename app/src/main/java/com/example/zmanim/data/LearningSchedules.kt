@@ -44,15 +44,15 @@ class LearningSchedules(private val context: Context) {
             val provider = providers.find { it.id == id } ?: return@mapNotNull null
             val value = when (id) {
                 "parsha" -> CalendarEngine().upcomingParsha(date, settings).ifBlank { if (he) "אין פרשה" else "No parsha" }
-                "holiday" -> formatter.formatYomTov(jc).ifBlank { if (he) "אין חג היום" else "No holiday today" }
-                "rosh-chodesh" -> formatter.formatRoshChodesh(jc).ifBlank { if (he) "לא ראש חודש" else "Not Rosh Chodesh" }
-                "omer" -> if (jc.dayOfOmer > 0) formatter.formatOmer(jc) else if (he) "מחוץ לספירת העומר" else "Outside Omer"
+                "holiday" -> formatter.formatYomTov(jc)
+                "rosh-chodesh" -> formatter.formatRoshChodesh(jc)
+                "omer" -> if (jc.dayOfOmer > 0) formatter.formatOmer(jc) else ""
                 else -> refs[id]?.let { if (he) it.second.ifBlank { it.first } else it.first } ?: when {
                     id == "yerushalmi-vilna" && date.toString() >= (provider.validFrom ?: "") && date.toString() <= (provider.validThrough ?: "") -> if (he) "אין לימוד היום" else "No learning today"
                     else -> if (he) "לא זמין לתאריך זה · ${provider.validFrom}–${provider.validThrough}" else "Unavailable for this date · ${provider.validFrom}–${provider.validThrough}"
                 }
             }
-            LearningRow(if (he) provider.he else provider.en, value)
+            if (value.isBlank()) null else LearningRow(if (he) provider.he else provider.en, value)
         }
     }
 }

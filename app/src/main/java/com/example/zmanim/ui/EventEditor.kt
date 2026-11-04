@@ -236,6 +236,55 @@ import kotlinx.coroutines.*
     }
 }
 
+/** Opens directly from a widget, including arbitrary recurring device-calendar instances. */
+@Composable fun ProviderEventEditor(s: ScreenData, model: AppViewModel, occurrence: Occurrence, onDismiss: () -> Unit) {
+    val loaded by produceState<Pair<Boolean, Event?>>(false to null, occurrence.key) {
+        value = true to withContext(Dispatchers.IO) { model.app.calendars.instanceEvent(occurrence) }
+    }
+    val initial = loaded.second
+    if (initial == null) {
+        AlertDialog(onDismissRequest = onDismiss, title = { Text(tr("Edit event", "עריכת אירוע")) },
+            text = { if (loaded.first) Text(tr("This occurrence is no longer available.", "מופע זה אינו זמין עוד.")) else CircularProgressIndicator() },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(tr("Close", "סגירה")) } })
+        return
+    }
+    var draft by rememberDraft("provider-instance-${occurrence.key}", initial)
+    val writable = model.app.calendars.canWrite() && s.calendars.any { it.id == occurrence.sourceCalendarId && it.writable }
+    var datePicker by remember { mutableStateOf(false) }
+    var timePicker by remember { mutableStateOf(false) }
+    val initialDuration = (if (initial.timeKind == EventTimeKind.ALL_DAY) initial.durationMinutes / 1440 else initial.durationMinutes).toString()
+    var duration by rememberSaveable(occurrence.key) { mutableStateOf(initialDuration) }
+    val context = LocalContext.current
+    EditorDialog(tr("Edit event", "עריכת אירוע"), writable && (draft != initial || duration != initialDuration), onDismiss, {
+        if (writable) {
+            val units = duration.toLongOrNull() ?: error("Enter a whole duration.")
+            val edited = draft.copy(durationMinutes = if (draft.timeKind == EventTimeKind.ALL_DAY) Math.multiplyExact(units, 1440L) else units)
+            withContext(Dispatchers.IO) { model.app.calendars.updateInstance(occurrence, initial, edited) }
+            model.refresh()
+        }
+    }, saveLabel = if (writable) null else tr("Close", "סגירה")) {
+        Text(tr("Changes apply to this occurrence in its original calendar.", "השינויים יחולו על מופע זה בלוח השנה המקורי."), style = MaterialTheme.typography.bodySmall)
+        if (!writable) Notice(tr("This calendar is read-only or calendar write access is missing.", "לוח זה לקריאה בלבד או שחסרה הרשאת כתיבה ללוח השנה."))
+        Field(tr("Title", "כותרת"), draft.title, { draft = draft.copy(title = it) }, enabled = writable)
+        OutlinedButton(onClick = { datePicker = true }, enabled = writable, modifier = Modifier.fillMaxWidth()) {
+            Text(LocalDate.parse(draft.anchorDate).format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy", LocalProductLocale.current)))
+        }
+        if (writable) Toggle(tr("All day", "כל היום"), draft.timeKind == EventTimeKind.ALL_DAY, {
+            draft = draft.copy(timeKind = if (it) EventTimeKind.ALL_DAY else EventTimeKind.FIXED)
+            duration = if (it) "1" else "60"
+        })
+        if (draft.timeKind == EventTimeKind.FIXED) OutlinedButton(onClick = { timePicker = true }, enabled = writable, modifier = Modifier.fillMaxWidth()) {
+            Text(LocalTime.parse(draft.localTime).format(java.time.format.DateTimeFormatter.ofPattern(if (s.data.settings.use24Hour ?: DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a", LocalProductLocale.current)))
+        }
+        Field(if (draft.timeKind == EventTimeKind.ALL_DAY) tr("Duration (days)", "משך (ימים)") else tr("Duration (minutes)", "משך (דקות)"), duration, { duration = it }, numeric = true, enabled = writable)
+        Field(tr("Location / venue", "מקום האירוע"), draft.venue, { draft = draft.copy(venue = it) }, enabled = writable)
+        Field(tr("Description", "תיאור"), draft.description, { draft = draft.copy(description = it) }, multiline = true, enabled = writable)
+    }
+    if (datePicker) GoToDialog(LocalDate.parse(draft.anchorDate), { draft = draft.copy(anchorDate = it.toString()); datePicker = false }, { datePicker = false }, CalendarSystem.GREGORIAN)
+    if (timePicker) TimeSelectionDialog(LocalTime.parse(draft.localTime), s.data.settings.use24Hour ?: DateFormat.is24HourFormat(context),
+        { draft = draft.copy(localTime = it.toString()); timePicker = false }, { timePicker = false })
+}
+
 @Composable fun ProviderEventDetails(s: ScreenData, model: AppViewModel, initial: Occurrence, onDismiss: () -> Unit, onEdit: (Event, Long) -> Unit) {
     var current by remember { mutableStateOf<Occurrence?>(null) }
     var ordinary by remember { mutableStateOf<Pair<Event, Long>?>(null) }

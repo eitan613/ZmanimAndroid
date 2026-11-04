@@ -81,6 +81,14 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_combined" />
         </receiver>
+        <receiver android:name=".widgets.CompactDateWidgetReceiver" android:exported="true" android:label="Hebrew date 1 × 1">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_date_compact" />
+        </receiver>
+        <receiver android:name=".widgets.CompactGregorianDateWidgetReceiver" android:exported="true" android:label="Gregorian date 1 × 1">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_gregorian_date_compact" />
+        </receiver>
     </application>
 
 </manifest>

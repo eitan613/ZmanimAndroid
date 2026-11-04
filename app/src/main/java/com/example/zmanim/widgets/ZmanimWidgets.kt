@@ -45,7 +45,7 @@ open class CalendarWidget(private val kind: WidgetKind, private val dateCalendar
                 if (settings.showDeviceEvents) events += runCatching { app.calendars.instances(now, now.plus(Duration.ofDays(365)), settings.visibleCalendarIds) }.getOrDefault(emptyList())
                     .filter { o -> data.exports.none { it.providerId == o.providerId && it.state == "MANAGED" } }
                 events.sortedBy { it.start }.take(config.itemCount.coerceIn(1, 10)).map { o ->
-                    val intent = widgetLaunch(context, widgetId, "calendar", o.date, o.key)
+                    val intent = widgetLaunch(context, widgetId, if (config.tap == WidgetTap.EVENT) "event" else "calendar", o.date, o.key)
                     if (config.tap == WidgetTap.EVENT) {
                         if (o.providerId != null) intent.putExtra("providerId", o.providerId).putExtra("instanceStart", o.start!!.toEpochMilli())
                         else intent.putExtra("eventId", o.eventId).putExtra("instanceStart", o.start!!.toEpochMilli())
@@ -73,6 +73,8 @@ class EventsWidget : CalendarWidget(WidgetKind.EVENTS)
 class ZmanimWidget : CalendarWidget(WidgetKind.ZMANIM)
 class DateWidget : CalendarWidget(WidgetKind.DATE)
 class GregorianDateWidget : CalendarWidget(WidgetKind.DATE, CalendarSystem.GREGORIAN)
+class CompactDateWidget : CalendarWidget(WidgetKind.DATE)
+class CompactGregorianDateWidget : CalendarWidget(WidgetKind.DATE, CalendarSystem.GREGORIAN)
 class CombinedWidget : CalendarWidget(WidgetKind.COMBINED)
 
 abstract class BaseWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -89,11 +91,14 @@ class EventsWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget
 class ZmanimWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ZmanimWidget() }
 class DateWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = DateWidget() }
 class GregorianDateWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = GregorianDateWidget() }
+class CompactDateWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = CompactDateWidget() }
+class CompactGregorianDateWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = CompactGregorianDateWidget() }
 class CombinedWidgetReceiver : BaseWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = CombinedWidget() }
 
 object WidgetUpdates {
     suspend fun refresh(context: Context, data: AppData) {
         EventsWidget().updateAll(context); ZmanimWidget().updateAll(context); DateWidget().updateAll(context); GregorianDateWidget().updateAll(context); CombinedWidget().updateAll(context)
+        CompactDateWidget().updateAll(context); CompactGregorianDateWidget().updateAll(context)
         val now = Instant.now()
         val boundaries = mutableListOf<Instant>()
         data.widgets.forEach { config ->
